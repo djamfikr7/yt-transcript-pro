@@ -1,0 +1,31 @@
+# YT Transcript Pro
+
+node_modules/
+.DS_Store
+*.log
+
+# Flutter
+yt_transcript_pro/.dart_tool/
+yt_transcript_pro/.flutter-plugins
+yt_transcript_pro/.flutter-plugins-dependencies
+yt_transcript_pro/.packages
+yt_transcript_pro/build/
+yt_transcript_pro/.pub/
+
+# Python
+backend/__pycache__/
+backend/*.pyc
+backend/.pytest_cache/
+backend/venv/
+backend/.env
+backend/*.db
+backend/*.sqlite
+
+# AI Models
+backend/models/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
