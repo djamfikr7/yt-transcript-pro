@@ -150,3 +150,31 @@ async def get_project(project_id: int, db: AsyncSession = Depends(get_db)):
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     return project
+
+@app.get("/projects/{project_id}/transcript")
+async def get_transcript(project_id: int, db: AsyncSession = Depends(get_db)):
+    """Get transcript segments for a project"""
+    result = await db.execute(
+        select(Transcript).where(Transcript.project_id == project_id)
+    )
+    transcripts = result.scalars().all()
+    
+    if not transcripts:
+        raise HTTPException(status_code=404, detail="No transcript found for this project")
+    
+    # Return the most recent transcript
+    transcript = transcripts[-1]
+    
+    # Parse the stored segments
+    import ast
+    try:
+        segments = ast.literal_eval(transcript.content)
+    except:
+        segments = []
+    
+    return {
+        "id": transcript.id,
+        "language": transcript.language,
+        "segments": segments,
+        "created_at": transcript.created_at
+    }

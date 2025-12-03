@@ -40,6 +40,18 @@ class ApiClient {
     }
   }
 
+  Future<Map<String, dynamic>> getTranscript(int projectId) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/projects/$projectId/transcript'),
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Failed to load transcript');
+    }
+  }
+
   Future<Map<String, dynamic>> healthCheck() async {
     final response = await http.get(Uri.parse('$baseUrl/health'));
 
