@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import '../widgets/neu_widgets.dart';
 import '../theme/app_theme.dart';
 
-/// Main Home Screen with 3-pane layout
-/// Left: Project Library | Center: Video Player & Timeline | Right: Transcript Editor
+/// Modern Home Screen - Clean Neumorphic Design
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
 
@@ -13,7 +12,6 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _urlController = TextEditingController();
-  bool _isProcessing = false;
 
   @override
   void dispose() {
@@ -21,329 +19,273 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  void _processVideo() {
-    if (_urlController.text.isEmpty) return;
-
-    setState(() => _isProcessing = true);
-
-    // TODO: Call backend API
-    Future.delayed(const Duration(seconds: 2), () {
-      if (mounted) {
-        setState(() => _isProcessing = false);
-      }
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Scaffold(
-      body: Container(
-        color: isDark ? AppTheme.backgroundDark : AppTheme.backgroundLight,
-        child: Column(
-          children: [
-            // Header Bar
-            _buildHeaderBar(),
+      backgroundColor: AppTheme.getBackground(context),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            children: [
+              // Header
+              _buildHeader(),
 
-            // Main Content - 3 Pane Layout
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Left Sidebar - Project Library
-                    SizedBox(width: 300, child: _buildProjectLibrary()),
+              const SizedBox(height: 32),
 
-                    const SizedBox(width: 16),
+              // Main Card
+              Expanded(
+                child: NeuCard(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    children: [
+                      // Progress Ring
+                      const ProgressRing(progress: 0.75, centerText: 'Ready'),
 
-                    // Center Panel - Video Player & Timeline
-                    Expanded(child: _buildCenterPanel()),
+                      const SizedBox(height: 32),
 
-                    const SizedBox(width: 16),
+                      // Action Buttons
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          NeuIconButton(
+                            icon: Icons.upload_file,
+                            label: 'Upload',
+                            iconColor: AppTheme.green,
+                            onTap: () {
+                              // TODO: Upload file
+                            },
+                          ),
+                          NeuIconButton(
+                            icon: Icons.link,
+                            label: 'URL',
+                            onTap: () {
+                              _showUrlDialog();
+                            },
+                          ),
+                          NeuIconButton(
+                            icon: Icons.add,
+                            label: 'Shortcut',
+                            onTap: () {
+                              // TODO: Shortcut
+                            },
+                          ),
+                        ],
+                      ),
 
-                    // Right Sidebar - Transcript Editor
-                    SizedBox(width: 350, child: _buildTranscriptPanel()),
-                  ],
+                      const SizedBox(height: 32),
+
+                      // Transactions Section
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Recent Projects',
+                            style: Theme.of(context).textTheme.labelLarge,
+                          ),
+                          Icon(
+                            Icons.arrow_forward_ios,
+                            size: 14,
+                            color: AppTheme.iconGray,
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // Transaction List (Empty State for now)
+                      Expanded(
+                        child: Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.video_library_outlined,
+                                size: 64,
+                                color: AppTheme.iconGray.withOpacity(0.3),
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'No projects yet',
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
 
-            // Status Bar
-            _buildStatusBar(),
-          ],
+              const SizedBox(height: 20),
+
+              // Bottom Navigation
+              _buildBottomNav(),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildHeaderBar() {
-    return GlassPanel(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-      borderRadius: 0,
-      child: Row(
-        children: [
-          // Logo/Title
-          const Icon(Icons.video_library, size: 32, color: AppTheme.primary),
-          const SizedBox(width: 12),
-          Text(
-            'YT Transcript Pro',
-            style: Theme.of(
-              context,
-            ).textTheme.displayLarge?.copyWith(fontSize: 24),
+  Widget _buildHeader() {
+    return Row(
+      children: [
+        // Profile Avatar
+        Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: AppTheme.green.withOpacity(0.2),
           ),
-
-          const SizedBox(width: 40),
-
-          // URL Input
-          Expanded(
-            child: NeuTextField(
-              hint: 'Paste YouTube URL...',
-              controller: _urlController,
-              prefixIcon: Icons.link,
-            ),
-          ),
-
-          const SizedBox(width: 16),
-
-          // Language Selector
-          NeuButton(
-            text: 'English',
-            icon: Icons.language,
-            onPressed: () {
-              // TODO: Show language picker
-            },
-          ),
-
-          const SizedBox(width: 16),
-
-          // Process Button
-          NeuButton(
-            text: 'Process',
-            icon: Icons.play_arrow,
-            color: AppTheme.primary,
-            isLoading: _isProcessing,
-            onPressed: _isProcessing ? null : _processVideo,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildProjectLibrary() {
-    return GlassPanel(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+          child: const Icon(Icons.person, color: AppTheme.green),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.folder, color: AppTheme.primary),
-              const SizedBox(width: 8),
               Text(
-                'Projects',
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold),
+                'Hello, User',
+                style: Theme.of(context).textTheme.labelLarge,
+              ),
+              const SizedBox(height: 2),
+              Text(
+                'YouTube Transcript Pro',
+                style: Theme.of(context).textTheme.bodyMedium,
               ),
             ],
           ),
-          const SizedBox(height: 16),
-
-          // Search Bar
-          const NeuTextField(
-            hint: 'Search projects...',
-            prefixIcon: Icons.search,
-          ),
-
-          const SizedBox(height: 16),
-
-          // Project List (Empty State)
-          Expanded(
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.video_library_outlined,
-                    size: 64,
-                    color: Colors.grey.withOpacity(0.3),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No projects yet',
-                    style: TextStyle(
-                      color: Colors.grey.withOpacity(0.6),
-                      fontSize: 14,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Paste a YouTube URL to start',
-                    style: TextStyle(
-                      color: Colors.grey.withOpacity(0.5),
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
+        ),
+        // Notification Badge
+        Stack(
+          children: [
+            NeuButton(
+              size: 48,
+              onTap: () {
+                // TODO: Show notifications
+              },
+              child: const Icon(Icons.notifications_outlined, size: 22),
+            ),
+            Positioned(
+              top: 8,
+              right: 8,
+              child: Container(
+                width: 8,
+                height: 8,
+                decoration: const BoxDecoration(
+                  color: AppTheme.orange,
+                  shape: BoxShape.circle,
+                ),
               ),
             ),
+          ],
+        ),
+        const SizedBox(width: 12),
+        // Theme Toggle
+        NeuButton(
+          size: 48,
+          onTap: () {
+            // TODO: Toggle theme
+          },
+          child: Icon(
+            Theme.of(context).brightness == Brightness.dark
+                ? Icons.light_mode
+                : Icons.dark_mode,
+            size: 22,
           ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBottomNav() {
+    return NeuCard(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
+      borderRadius: 20,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _buildNavItem(Icons.home, 'Home', true),
+          _buildNavItem(Icons.analytics_outlined, 'Analytics', false),
+          _buildNavItem(Icons.wallet_outlined, 'Payments', false),
+          _buildNavItem(Icons.more_horiz, 'More', false),
         ],
       ),
     );
   }
 
-  Widget _buildCenterPanel() {
-    return GlassPanel(
-      child: Column(
-        children: [
-          // Video Player Placeholder
-          Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.3),
-                borderRadius: BorderRadius.circular(12),
+  Widget _buildNavItem(IconData icon, String label, bool isActive) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          icon,
+          color: isActive ? AppTheme.green : AppTheme.iconGray,
+          size: 24,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: isActive ? AppTheme.green : AppTheme.iconGray,
+            fontSize: 11,
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showUrlDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: NeuCard(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Enter YouTube URL',
+                style: Theme.of(context).textTheme.displayMedium,
               ),
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.play_circle_outline,
-                      size: 80,
-                      color: Colors.white.withOpacity(0.3),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Video Player',
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.5),
-                        fontSize: 18,
+              const SizedBox(height: 20),
+              NeuTextField(
+                hint: 'https://youtube.com/watch?v=...',
+                controller: _urlController,
+                prefixIcon: Icons.link,
+              ),
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Cancel'),
+                  ),
+                  const SizedBox(width: 12),
+                  ElevatedButton(
+                    onPressed: () {
+                      // TODO: Process URL
+                      Navigator.pop(context);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.green,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 12,
                       ),
                     ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          // Timeline Placeholder
-          Container(
-            height: 100,
-            decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Center(
-              child: Text(
-                'Timeline & Waveform',
-                style: TextStyle(
-                  color: Colors.grey.withOpacity(0.5),
-                  fontSize: 14,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTranscriptPanel() {
-    return GlassPanel(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.article, color: AppTheme.primary),
-              const SizedBox(width: 8),
-              Text(
-                'Transcript',
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold),
-              ),
-              const Spacer(),
-              IconButton(
-                icon: const Icon(Icons.translate, size: 20),
-                onPressed: () {
-                  // TODO: Toggle translation view
-                },
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          // Transcript Content (Empty State)
-          Expanded(
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.article_outlined,
-                    size: 64,
-                    color: Colors.grey.withOpacity(0.3),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No transcript yet',
-                    style: TextStyle(
-                      color: Colors.grey.withOpacity(0.6),
-                      fontSize: 14,
-                    ),
+                    child: const Text('Process'),
                   ),
                 ],
               ),
-            ),
+            ],
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatusBar() {
-    return GlassPanel(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-      borderRadius: 0,
-      child: Row(
-        children: [
-          // Status Indicator
-          Container(
-            width: 12,
-            height: 12,
-            decoration: BoxDecoration(
-              color: AppTheme.success,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: AppTheme.success.withOpacity(0.5),
-                  blurRadius: 8,
-                  spreadRadius: 2,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          Text(
-            _isProcessing ? 'Processing...' : 'Ready',
-            style: const TextStyle(fontSize: 13),
-          ),
-
-          const Spacer(),
-
-          // GPU Memory Monitor Placeholder
-          const Icon(Icons.memory, size: 16, color: Colors.grey),
-          const SizedBox(width: 8),
-          Text(
-            'GPU: N/A',
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-          ),
-        ],
+        ),
       ),
     );
   }

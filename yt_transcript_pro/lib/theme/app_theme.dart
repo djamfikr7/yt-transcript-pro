@@ -1,102 +1,84 @@
 import 'package:flutter/material.dart';
 
-/// True Neumorphic Design System for YT Transcript Pro
-/// Based on user-provided reference image
+/// Modern Neumorphic Design System
+/// Based on clean mobile app reference (light/dark modes)
 
 class AppTheme {
-  // === Neumorphic Color Palette ===
-  static const primary = Color(0xFF6366F1); // Indigo for primary actions
-  static const accent = Color(0xFFFF6B85); // Pink/Coral accent (from reference)
-  static const success = Color(0xFF10B981); // Emerald
-  static const warning = Color(0xFFF59E0B); // Amber
-  static const error = Color(0xFFEF4444); // Red
+  // === Light Mode Colors ===
+  static const lightBackground = Color(0xFFEEF1F4); // Light blue-gray
+  static const lightSurface = Color(0xFFFFFFFF); // Pure white cards
+  static const lightText = Color(0xFF2C2F3E); // Dark text
+  static const lightTextSecondary = Color(0xFF8E93A6); // Gray text
 
-  // Neumorphic backgrounds - soft gray tones
-  static const backgroundLight = Color(0xFFE0E5EC); // Soft light gray (key!)
-  static const surfaceLight = Color(
-    0xFFE0E5EC,
-  ); // Same as background for unified look
-  static const textDark = Color(0xFF4A5568); // Muted dark text
+  // === Dark Mode Colors ===
+  static const darkBackground = Color(0xFF2C2F3E); // Dark charcoal
+  static const darkSurface = Color(0xFF353849); // Slightly lighter panels
+  static const darkText = Color(0xFFFFFFFF); // White text
+  static const darkTextSecondary = Color(0xFF8E93A6); // Gray text (same)
 
-  // Shadow colors for neumorphic effect
-  static const shadowDark = Color(0xFFA3B1C6); // Darker shadow
-  static const shadowLight = Color(0xFFFFFFFF); // White highlight
+  // === Accent Colors (Same for both modes) ===
+  static const green = Color(0xFF4ADE80); // Primary green
+  static const orange = Color(0xFFFF9500); // Orange accent
+  static const red = Color(0xFFFF3B30); // Red for negative values
+  static const iconGray = Color(0xFF8E93A6); // Icon tint
 
-  // Dark mode (keeping for system compatibility)
-  static const backgroundDark = Color(0xFF2D3748);
-  static const surfaceDark = Color(0xFF1A202C);
-  static const textLight = Color(0xFFE2E8F0);
-
-  // === Neumorphic Shadow System ===
-  static List<BoxShadow> neuShadows({bool pressed = false, bool dark = false}) {
-    if (dark) {
-      // Simple dark mode shadows
-      return pressed
-          ? [
-              BoxShadow(
-                color: Colors.black26,
-                offset: const Offset(2, 2),
-                blurRadius: 4,
-              ),
-            ]
-          : [
-              BoxShadow(
-                color: Colors.black38,
-                offset: const Offset(8, 8),
-                blurRadius: 16,
-              ),
-            ];
-    }
-
+  // === Shadow System ===
+  static List<BoxShadow> lightShadows({bool pressed = false}) {
     if (pressed) {
-      // Inset effect - darker shadows, closer
       return [
         BoxShadow(
-          color: shadowDark,
-          offset: const Offset(4, 4),
-          blurRadius: 8,
-          spreadRadius: -2,
+          color: const Color(0xFFD1D9E0),
+          offset: const Offset(2, 2),
+          blurRadius: 4,
+          spreadRadius: 0,
         ),
         BoxShadow(
-          color: shadowLight,
-          offset: const Offset(-4, -4),
-          blurRadius: 8,
-          spreadRadius: -2,
+          color: Colors.white,
+          offset: const Offset(-2, -2),
+          blurRadius: 4,
+          spreadRadius: 0,
         ),
       ];
     }
-
-    // Raised effect - classic neumorphism
     return [
       BoxShadow(
-        color: shadowDark,
-        offset: const Offset(8, 8),
-        blurRadius: 16,
+        color: const Color(0xFFD1D9E0).withOpacity(0.6),
+        offset: const Offset(6, 6),
+        blurRadius: 12,
         spreadRadius: 0,
       ),
       BoxShadow(
-        color: shadowLight,
-        offset: const Offset(-8, -8),
-        blurRadius: 16,
+        color: Colors.white,
+        offset: const Offset(-6, -6),
+        blurRadius: 12,
         spreadRadius: 0,
       ),
     ];
   }
 
-  // Flat surface (no depth) - for backgrounds
-  static List<BoxShadow> flatShadows({bool dark = false}) {
-    if (dark) return [];
-
+  static List<BoxShadow> darkShadows({bool pressed = false}) {
+    if (pressed) {
+      return [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.3),
+          offset: const Offset(2, 2),
+          blurRadius: 4,
+          spreadRadius: 0,
+        ),
+      ];
+    }
     return [
       BoxShadow(
-        color: shadowDark.withOpacity(0.3),
+        color: Colors.black.withOpacity(0.3),
         offset: const Offset(4, 4),
         blurRadius: 8,
+        spreadRadius: 0,
       ),
       BoxShadow(
-        color: shadowLight,
-        offset: const Offset(-4, -4),
+        color: const Color(0xFF3D4050).withOpacity(0.5),
+        offset: const Offset(-2, -2),
         blurRadius: 8,
+        spreadRadius: 0,
       ),
     ];
   }
@@ -104,57 +86,92 @@ class AppTheme {
   // === ThemeData ===
   static ThemeData lightTheme = ThemeData(
     useMaterial3: true,
-    primaryColor: primary,
-    scaffoldBackgroundColor: backgroundLight,
+    brightness: Brightness.light,
+    primaryColor: green,
+    scaffoldBackgroundColor: lightBackground,
     colorScheme: const ColorScheme.light(
-      primary: primary,
-      secondary: accent,
-      error: error,
-      surface: surfaceLight,
+      primary: green,
+      secondary: orange,
+      error: red,
+      surface: lightSurface,
       onPrimary: Colors.white,
-      onSurface: textDark,
+      onSurface: lightText,
     ),
     textTheme: const TextTheme(
       displayLarge: TextStyle(
-        fontSize: 32,
+        fontSize: 28,
         fontWeight: FontWeight.bold,
-        color: textDark,
-        letterSpacing: -0.5,
+        color: lightText,
       ),
-      bodyLarge: TextStyle(fontSize: 16, color: textDark),
-      bodyMedium: TextStyle(fontSize: 14, color: textDark),
-    ),
-    elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
-        elevation: 0,
-        padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-        backgroundColor: surfaceLight,
-        foregroundColor: textDark,
+      displayMedium: TextStyle(
+        fontSize: 24,
+        fontWeight: FontWeight.w600,
+        color: lightText,
+      ),
+      bodyLarge: TextStyle(fontSize: 16, color: lightText),
+      bodyMedium: TextStyle(fontSize: 14, color: lightTextSecondary),
+      labelLarge: TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+        color: lightText,
       ),
     ),
   );
 
   static ThemeData darkTheme = ThemeData(
     useMaterial3: true,
-    primaryColor: primary,
-    scaffoldBackgroundColor: backgroundDark,
+    brightness: Brightness.dark,
+    primaryColor: green,
+    scaffoldBackgroundColor: darkBackground,
     colorScheme: const ColorScheme.dark(
-      primary: primary,
-      secondary: accent,
-      error: error,
-      surface: surfaceDark,
+      primary: green,
+      secondary: orange,
+      error: red,
+      surface: darkSurface,
       onPrimary: Colors.white,
-      onSurface: textLight,
+      onSurface: darkText,
     ),
     textTheme: const TextTheme(
       displayLarge: TextStyle(
-        fontSize: 32,
+        fontSize: 28,
         fontWeight: FontWeight.bold,
-        color: textLight,
+        color: darkText,
       ),
-      bodyLarge: TextStyle(fontSize: 16, color: textLight),
-      bodyMedium: TextStyle(fontSize: 14, color: textLight),
+      displayMedium: TextStyle(
+        fontSize: 24,
+        fontWeight: FontWeight.w600,
+        color: darkText,
+      ),
+      bodyLarge: TextStyle(fontSize: 16, color: darkText),
+      bodyMedium: TextStyle(fontSize: 14, color: darkTextSecondary),
+      labelLarge: TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+        color: darkText,
+      ),
     ),
   );
+
+  // Helper to get shadows based on theme
+  static List<BoxShadow> getShadows(
+    BuildContext context, {
+    bool pressed = false,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return isDark
+        ? darkShadows(pressed: pressed)
+        : lightShadows(pressed: pressed);
+  }
+
+  // Helper to get surface color
+  static Color getSurface(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return isDark ? darkSurface : lightSurface;
+  }
+
+  // Helper to get background color
+  static Color getBackground(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return isDark ? darkBackground : lightBackground;
+  }
 }

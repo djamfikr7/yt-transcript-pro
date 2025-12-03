@@ -1,21 +1,48 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 
-/// Custom Neumorphic Button Widget
+/// Modern Neumorphic Card/Panel
+class NeuCard extends StatelessWidget {
+  final Widget child;
+  final EdgeInsets? padding;
+  final double borderRadius;
+
+  const NeuCard({
+    Key? key,
+    required this.child,
+    this.padding,
+    this.borderRadius = 24,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: padding ?? const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppTheme.getSurface(context),
+        borderRadius: BorderRadius.circular(borderRadius),
+        boxShadow: AppTheme.getShadows(context),
+      ),
+      child: child,
+    );
+  }
+}
+
+/// Modern Neumorphic Button
 class NeuButton extends StatefulWidget {
-  final String text;
-  final VoidCallback? onPressed;
-  final IconData? icon;
+  final Widget child;
+  final VoidCallback? onTap;
   final Color? color;
-  final bool isLoading;
+  final double size;
+  final bool isCircle;
 
   const NeuButton({
     Key? key,
-    required this.text,
-    this.onPressed,
-    this.icon,
+    required this.child,
+    this.onTap,
     this.color,
-    this.isLoading = false,
+    this.size = 60,
+    this.isCircle = true,
   }) : super(key: key);
 
   @override
@@ -27,118 +54,224 @@ class _NeuButtonState extends State<NeuButton> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = widget.color ?? AppTheme.surfaceLight;
+    final bgColor = widget.color ?? AppTheme.getSurface(context);
 
     return GestureDetector(
       onTapDown: (_) => setState(() => _isPressed = true),
       onTapUp: (_) {
         setState(() => _isPressed = false);
-        widget.onPressed?.call();
+        widget.onTap?.call();
       },
       onTapCancel: () => setState(() => _isPressed = false),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        padding: EdgeInsets.symmetric(
-          horizontal: _isPressed ? 28 : 30,
-          vertical: _isPressed ? 14 : 16,
-        ),
+        width: widget.size,
+        height: widget.size,
         decoration: BoxDecoration(
           color: bgColor,
-          borderRadius: BorderRadius.circular(15),
-          boxShadow: AppTheme.neuShadows(pressed: _isPressed, dark: isDark),
+          shape: widget.isCircle ? BoxShape.circle : BoxShape.rectangle,
+          borderRadius: widget.isCircle ? null : BorderRadius.circular(16),
+          boxShadow: AppTheme.getShadows(context, pressed: _isPressed),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (widget.icon != null) ...[
-              Icon(widget.icon, size: 18),
-              const SizedBox(width: 8),
-            ],
-            if (widget.isLoading)
-              const SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            else
-              Text(
-                widget.text,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-          ],
-        ),
+        child: Center(child: widget.child),
       ),
     );
   }
 }
 
-/// Neumorphic Panel - solid surface with depth
-class GlassPanel extends StatelessWidget {
-  final Widget child;
-  final double borderRadius;
-  final EdgeInsets? padding;
+/// Icon Button with Label (like in reference)
+class NeuIconButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color? iconColor;
+  final VoidCallback? onTap;
 
-  const GlassPanel({
+  const NeuIconButton({
     Key? key,
-    required this.child,
-    this.borderRadius = 20,
-    this.padding,
+    required this.icon,
+    required this.label,
+    this.iconColor,
+    this.onTap,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Container(
-      padding: padding ?? const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: isDark ? AppTheme.surfaceDark : AppTheme.surfaceLight,
-        borderRadius: BorderRadius.circular(borderRadius),
-        boxShadow: AppTheme.neuShadows(dark: isDark),
-      ),
-      child: child,
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        NeuButton(
+          onTap: onTap,
+          child: Icon(icon, color: iconColor ?? AppTheme.green, size: 24),
+        ),
+        const SizedBox(height: 8),
+        Text(label, style: Theme.of(context).textTheme.bodyMedium),
+      ],
     );
   }
 }
 
-/// Neumorphic Input Field - inset effect
+/// Modern Input Field
 class NeuTextField extends StatelessWidget {
   final String hint;
   final TextEditingController? controller;
   final IconData? prefixIcon;
-  final int? maxLines;
+  final bool obscureText;
 
   const NeuTextField({
     Key? key,
     required this.hint,
     this.controller,
     this.prefixIcon,
-    this.maxLines = 1,
+    this.obscureText = false,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? AppTheme.surfaceDark : AppTheme.surfaceLight,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: AppTheme.neuShadows(pressed: true, dark: isDark),
+        color: AppTheme.getSurface(context),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: AppTheme.getShadows(context, pressed: true),
       ),
       child: TextField(
         controller: controller,
-        maxLines: maxLines,
+        obscureText: obscureText,
+        style: Theme.of(context).textTheme.bodyLarge,
         decoration: InputDecoration(
           hintText: hint,
-          prefixIcon: prefixIcon != null ? Icon(prefixIcon) : null,
+          hintStyle: Theme.of(context).textTheme.bodyMedium,
+          prefixIcon: prefixIcon != null
+              ? Icon(prefixIcon, color: AppTheme.iconGray)
+              : null,
           border: InputBorder.none,
-          contentPadding: const EdgeInsets.all(16),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 16,
+          ),
         ),
+      ),
+    );
+  }
+}
+
+/// Transaction List Item (like in reference)
+class TransactionItem extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final String amount;
+  final bool isNegative;
+  final IconData icon;
+
+  const TransactionItem({
+    Key? key,
+    required this.title,
+    required this.subtitle,
+    required this.amount,
+    this.isNegative = true,
+    this.icon = Icons.shopping_bag_outlined,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: AppTheme.getBackground(context),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, size: 20, color: AppTheme.iconGray),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: Theme.of(context).textTheme.bodyLarge),
+                const SizedBox(height: 2),
+                Text(subtitle, style: Theme.of(context).textTheme.bodyMedium),
+              ],
+            ),
+          ),
+          Text(
+            '${isNegative ? '-' : '+'}$amount',
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+              color: isNegative ? AppTheme.red : AppTheme.green,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Progress Ring (like in reference with green/orange gradient)
+class ProgressRing extends StatelessWidget {
+  final double progress; // 0.0 to 1.0
+  final double size;
+  final double strokeWidth;
+  final String centerText;
+
+  const ProgressRing({
+    Key? key,
+    this.progress = 0.75,
+    this.size = 180,
+    this.strokeWidth = 12,
+    this.centerText = '\$95,000',
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // Background ring
+          Container(
+            width: size,
+            height: size,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppTheme.getBackground(context),
+              boxShadow: AppTheme.getShadows(context, pressed: true),
+            ),
+          ),
+          // Progress ring (simplified - actual gradient would need CustomPaint)
+          SizedBox(
+            width: size - 20,
+            height: size - 20,
+            child: CircularProgressIndicator(
+              value: progress,
+              strokeWidth: strokeWidth,
+              backgroundColor: Colors.transparent,
+              valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.green),
+            ),
+          ),
+          // Center text
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Cash available',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                centerText,
+                style: Theme.of(context).textTheme.displayMedium?.copyWith(
+                  color: AppTheme.green,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
