@@ -1,120 +1,152 @@
-"""
-YouTube Transcript & Translate Pro - Backend API
-FastAPI server for AI processing (transcription, translation, dubbing)
-"""
-
-from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, HttpUrl
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from pydantic import BaseModel
 from typing import List, Optional
-import uvicorn
+import asyncio
 
-app = FastAPI(
-    title="YT Transcript Pro API",
-    description="Local AI processing server for transcription, translation, and dubbing",
-    version="1.0.0"
-)
+from database import init_db, get_db
+from models import Project, Transcript, ProjectStatus
+from services.downloader import download_audio
+from services.transcriber import transcriber
 
-# Enable CORS for Flutter web app
+app = FastAPI(title="YT Transcript Pro API")
+
+# CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:*", "http://127.0.0.1:*"],  # Flutter web dev server
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# === Request/Response Models ===
+# Pydantic Models
+class ProjectCreate(BaseModel):
+    url: str
 
-class VideoProcessRequest(BaseModel):
-    url: HttpUrl
-    target_languages: List[str] = ["en"]
-    enable_dubbing: bool = False
-    quality: str = "balanced"  # fast, balanced, cinematic
+class ProjectResponse(BaseModel):
+    id: int
+    title: Optional[str]
+    url: str
+    status: str
+    thumbnail_url: Optional[str]
+    
+    class Config:
+        from_attributes = True
 
-class TranscriptSegment(BaseModel):
-    id: str
-    start_time: float
-    end_time: float
-    text: str
-    speaker: str
-    confidence: float
-    language: str
+# Background Task
+async def process_project(project_id: int, db: AsyncSession):
+    """
+    Orchestrates the download and transcription process.
+    """
+    print(f"Starting processing for project {project_id}")
+    
+    # 1. Get Project
+    async with db.begin(): # Transaction
+        result = await db.execute(select(Project).where(Project.id == project_id))
+        project = result.scalar_one_or_none()
+        if not project:
+            return
+        project.status = ProjectStatus.DOWNLOADING
+        await db.commit()
 
-class ProcessingStatus(BaseModel):
-    project_id: str
-    status: str  # queued, downloading, transcribing, translating, dubbing, completed, failed
-    progress: float  # 0.0 to 1.0
-    current_stage: str
-    eta_seconds: Optional[int] = None
+    try:
+        # 2. Download
+        print(f"Downloading {project.url}...")
+        # Re-fetch project to avoid detached instance issues if needed, 
+        # but for simple updates we might be ok. 
+        # Ideally we pass IDs or manage session carefully.
+        
+        metadata = await download_audio(project.url, project_id)
+        
+        async with db.begin():
+            # Re-fetch to update
+            result = await db.execute(select(Project).where(Project.id == project_id))
+            project = result.scalar_one_or_none()
+            project.title = metadata.get("title")
+            project.duration = metadata.get("duration")
+            project.thumbnail_url = metadata.get("thumbnail")
+            project.audio_path = metadata.get("file_path")
+            project.status = ProjectStatus.PROCESSING
+            await db.commit()
+            
+        # 3. Transcribe
+        print(f"Transcribing {project.audio_path}...")
+        transcript_result = await transcriber.transcribe(project.audio_path)
+        
+        async with db.begin():
+            result = await db.execute(select(Project).where(Project.id == project_id))
+            project = result.scalar_one_or_none()
+            
+            # Save Transcript
+            new_transcript = Transcript(
+                project_id=project.id,
+                language=transcript_result["language"],
+                content=str(transcript_result["segments"]) # Store as stringified JSON for now
+            )
+            db.add(new_transcript)
+            
+            project.status = ProjectStatus.COMPLETED
+            await db.commit()
+            
+        print(f"Project {project_id} completed.")
 
-# === API Endpoints ===
+    except Exception as e:
+        print(f"Error processing project {project_id}: {e}")
+        async with db.begin():
+            result = await db.execute(select(Project).where(Project.id == project_id))
+            project = result.scalar_one_or_none()
+            project.status = ProjectStatus.FAILED
+            await db.commit()
 
-@app.get("/")
-async def root():
-    return {
-        "service": "YT Transcript Pro Backend",
-        "status": "running",
-        "version": "1.0.0"
-    }
+@app.on_event("startup")
+async def on_startup():
+    await init_db()
 
 @app.get("/health")
-async def health_check():
-    """Health check endpoint for Flutter app connection testing"""
-    return {
-        "status": "healthy",
-        "gpu_available": False,  # TODO: Implement GPU detection
-        "models_loaded": []  # TODO: Return loaded model status
-    }
+def health_check():
+    return {"status": "ok", "version": "0.1.0"}
 
-@app.post("/api/process", response_model=ProcessingStatus)
-async def process_video(request: VideoProcessRequest):
-    """
-    Start processing a YouTube video
-    Returns: Initial processing status with project_id for polling
-    """
-    # TODO: Implement actual processing pipeline
-    return ProcessingStatus(
-        project_id="temp-id-123",
-        status="queued",
-        progress=0.0,
-        current_stage="Initializing"
-    )
+@app.post("/projects", response_model=ProjectResponse)
+async def create_project(
+    project_in: ProjectCreate, 
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db)
+):
+    new_project = Project(url=project_in.url, status=ProjectStatus.CREATED)
+    db.add(new_project)
+    await db.commit()
+    await db.refresh(new_project)
+    
+    # Start background processing
+    # Note: We need a new session for the background task to avoid concurrency issues
+    # For simplicity here, we're passing the logic to a function that should handle its own session
+    # But `process_project` currently takes `db`. 
+    # Better pattern: Pass ID and let background task create its own session.
+    # Let's fix `process_project` to create its own session.
+    
+    background_tasks.add_task(run_process_project_safe, new_project.id)
+    
+    return new_project
 
-@app.get("/api/status/{project_id}", response_model=ProcessingStatus)
-async def get_status(project_id: str):
-    """Poll processing status"""
-    # TODO: Implement status retrieval from database
-    return ProcessingStatus(
-        project_id=project_id,
-        status="processing",
-        progress=0.5,
-        current_stage="Transcribing"
-    )
+async def run_process_project_safe(project_id: int):
+    """Wrapper to create a new session for the background task"""
+    from database import AsyncSessionLocal
+    async with AsyncSessionLocal() as session:
+        await process_project(project_id, session)
 
-@app.get("/api/transcript/{project_id}")
-async def get_transcript(project_id: str, language: str = "original"):
-    """Retrieve transcript segments"""
-    # TODO: Implement transcript retrieval
-    return {"segments": []}
+@app.get("/projects", response_model=List[ProjectResponse])
+async def list_projects(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Project).order_by(Project.created_at.desc()))
+    projects = result.scalars().all()
+    return projects
 
-@app.post("/api/translate/{project_id}")
-async def translate_transcript(project_id: str, target_language: str):
-    """Trigger translation for a specific language"""
-    # TODO: Implement translation
-    return {"status": "started"}
-
-@app.post("/api/dub/{project_id}")
-async def generate_dubbing(project_id: str, target_language: str, voice_profile: str = "default"):
-    """Generate dubbed video"""
-    # TODO: Implement dubbing pipeline
-    return {"status": "started"}
-
-if __name__ == "__main__":
-    uvicorn.run(
-        "main:app",
-        host="127.0.0.1",
-        port=8000,
-        reload=True,
-        log_level="info"
-    )
+@app.get("/projects/{project_id}")
+async def get_project(project_id: int, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Project).where(Project.id == project_id))
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return project
