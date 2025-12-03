@@ -40,15 +40,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: isDark
-                ? [AppTheme.backgroundDark, AppTheme.surfaceDark]
-                : [const Color(0xFFFAFBFC), const Color(0xFFF0F4F8)],
-          ),
-        ),
+        color: isDark ? AppTheme.backgroundDark : AppTheme.backgroundLight,
         child: Column(
           children: [
             // Header Bar

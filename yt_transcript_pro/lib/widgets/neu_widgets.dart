@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 
-/// Custom Neomorphic Button Widget
-/// Implements soft shadows and press animations as per PRD
+/// Custom Neumorphic Button Widget
 class NeuButton extends StatefulWidget {
   final String text;
   final VoidCallback? onPressed;
@@ -29,8 +28,7 @@ class _NeuButtonState extends State<NeuButton> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor =
-        widget.color ?? (isDark ? AppTheme.surfaceDark : AppTheme.surfaceLight);
+    final bgColor = widget.color ?? AppTheme.surfaceLight;
 
     return GestureDetector(
       onTapDown: (_) => setState(() => _isPressed = true),
@@ -78,7 +76,7 @@ class _NeuButtonState extends State<NeuButton> {
   }
 }
 
-/// Neomorphic Glass Panel with blur effect
+/// Neumorphic Panel - solid surface with depth
 class GlassPanel extends StatelessWidget {
   final Widget child;
   final double borderRadius;
@@ -98,11 +96,8 @@ class GlassPanel extends StatelessWidget {
     return Container(
       padding: padding ?? const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: isDark
-            ? AppTheme.surfaceDark.withOpacity(0.7)
-            : AppTheme.surfaceLight.withOpacity(0.7),
+        color: isDark ? AppTheme.surfaceDark : AppTheme.surfaceLight,
         borderRadius: BorderRadius.circular(borderRadius),
-        border: Border.all(color: Colors.white.withOpacity(0.1), width: 1),
         boxShadow: AppTheme.neuShadows(dark: isDark),
       ),
       child: child,
@@ -110,7 +105,7 @@ class GlassPanel extends StatelessWidget {
   }
 }
 
-/// Neomorphic Input Field
+/// Neumorphic Input Field - inset effect
 class NeuTextField extends StatelessWidget {
   final String hint;
   final TextEditingController? controller;

@@ -1,62 +1,102 @@
 import 'package:flutter/material.dart';
 
-/// Neomorphic Design System for YT Transcript Pro
-/// Lighter theme with enhanced soft shadows
+/// True Neumorphic Design System for YT Transcript Pro
+/// Based on user-provided reference image
 
 class AppTheme {
-  // === Color Palette - Lighter Theme ===
-  static const primary = Color(0xFF6366F1); // Vibrant Indigo
+  // === Neumorphic Color Palette ===
+  static const primary = Color(0xFF6366F1); // Indigo for primary actions
+  static const accent = Color(0xFFFF6B85); // Pink/Coral accent (from reference)
   static const success = Color(0xFF10B981); // Emerald
   static const warning = Color(0xFFF59E0B); // Amber
   static const error = Color(0xFFEF4444); // Red
 
-  // Lighter background colors
-  static const backgroundLight = Color(0xFFFFFFFF); // Pure white
-  static const surfaceLight = Color(0xFFF8F9FA); // Very light gray
-  static const textDark = Color(0xFF2D3748); // Softer dark
-  static const shadowLight = Color(0xFFFFFFFF);
-  static const shadowDark = Color(0xFFE2E8F0); // Lighter shadow
-  static const accent = Color(0xFF8B5CF6); // Purple accent
+  // Neumorphic backgrounds - soft gray tones
+  static const backgroundLight = Color(0xFFE0E5EC); // Soft light gray (key!)
+  static const surfaceLight = Color(
+    0xFFE0E5EC,
+  ); // Same as background for unified look
+  static const textDark = Color(0xFF4A5568); // Muted dark text
 
-  // Dark mode colors (for system dark mode)
-  static const backgroundDark = Color(0xFF1A1A2E);
-  static const surfaceDark = Color(0xFF16213E);
-  static const textLight = Color(0xFFE5E7EB);
+  // Shadow colors for neumorphic effect
+  static const shadowDark = Color(0xFFA3B1C6); // Darker shadow
+  static const shadowLight = Color(0xFFFFFFFF); // White highlight
 
-  // === Enhanced Shadow Configurations for Lighter Theme ===
+  // Dark mode (keeping for system compatibility)
+  static const backgroundDark = Color(0xFF2D3748);
+  static const surfaceDark = Color(0xFF1A202C);
+  static const textLight = Color(0xFFE2E8F0);
+
+  // === Neumorphic Shadow System ===
   static List<BoxShadow> neuShadows({bool pressed = false, bool dark = false}) {
+    if (dark) {
+      // Simple dark mode shadows
+      return pressed
+          ? [
+              BoxShadow(
+                color: Colors.black26,
+                offset: const Offset(2, 2),
+                blurRadius: 4,
+              ),
+            ]
+          : [
+              BoxShadow(
+                color: Colors.black38,
+                offset: const Offset(8, 8),
+                blurRadius: 16,
+              ),
+            ];
+    }
+
     if (pressed) {
-      // Inset shadow effect for pressed state
+      // Inset effect - darker shadows, closer
       return [
         BoxShadow(
-          color: dark
-              ? Colors.black26
-              : const Color(0xFFD1D9E6).withOpacity(0.6),
-          offset: const Offset(3, 3),
-          blurRadius: 6,
+          color: shadowDark,
+          offset: const Offset(4, 4),
+          blurRadius: 8,
           spreadRadius: -2,
         ),
         BoxShadow(
-          color: dark ? Colors.white10 : Colors.white.withOpacity(0.9),
-          offset: const Offset(-3, -3),
-          blurRadius: 6,
+          color: shadowLight,
+          offset: const Offset(-4, -4),
+          blurRadius: 8,
           spreadRadius: -2,
         ),
       ];
     }
-    // Enhanced raised effect for lighter theme
+
+    // Raised effect - classic neumorphism
     return [
       BoxShadow(
-        color: dark ? Colors.black38 : const Color(0xFFD1D9E6).withOpacity(0.8),
-        offset: const Offset(10, 10),
-        blurRadius: 20,
+        color: shadowDark,
+        offset: const Offset(8, 8),
+        blurRadius: 16,
         spreadRadius: 0,
       ),
       BoxShadow(
-        color: dark ? Colors.white10 : Colors.white,
-        offset: const Offset(-10, -10),
-        blurRadius: 20,
+        color: shadowLight,
+        offset: const Offset(-8, -8),
+        blurRadius: 16,
         spreadRadius: 0,
+      ),
+    ];
+  }
+
+  // Flat surface (no depth) - for backgrounds
+  static List<BoxShadow> flatShadows({bool dark = false}) {
+    if (dark) return [];
+
+    return [
+      BoxShadow(
+        color: shadowDark.withOpacity(0.3),
+        offset: const Offset(4, 4),
+        blurRadius: 8,
+      ),
+      BoxShadow(
+        color: shadowLight,
+        offset: const Offset(-4, -4),
+        blurRadius: 8,
       ),
     ];
   }
@@ -68,7 +108,7 @@ class AppTheme {
     scaffoldBackgroundColor: backgroundLight,
     colorScheme: const ColorScheme.light(
       primary: primary,
-      secondary: success,
+      secondary: accent,
       error: error,
       surface: surfaceLight,
       onPrimary: Colors.white,
@@ -79,6 +119,7 @@ class AppTheme {
         fontSize: 32,
         fontWeight: FontWeight.bold,
         color: textDark,
+        letterSpacing: -0.5,
       ),
       bodyLarge: TextStyle(fontSize: 16, color: textDark),
       bodyMedium: TextStyle(fontSize: 14, color: textDark),
@@ -100,7 +141,7 @@ class AppTheme {
     scaffoldBackgroundColor: backgroundDark,
     colorScheme: const ColorScheme.dark(
       primary: primary,
-      secondary: success,
+      secondary: accent,
       error: error,
       surface: surfaceDark,
       onPrimary: Colors.white,
