@@ -46,7 +46,7 @@ class _HomeScreenState extends State<HomeScreen> {
             end: Alignment.bottomRight,
             colors: isDark
                 ? [AppTheme.backgroundDark, AppTheme.surfaceDark]
-                : [AppTheme.backgroundLight, const Color(0xFFC3CFE2)],
+                : [const Color(0xFFFAFBFC), const Color(0xFFF0F4F8)],
           ),
         ),
         child: Column(

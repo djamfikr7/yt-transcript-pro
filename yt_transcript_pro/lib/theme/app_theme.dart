@@ -1,58 +1,61 @@
 import 'package:flutter/material.dart';
 
 /// Neomorphic Design System for YT Transcript Pro
-/// Based on PRD specifications with glassmorphism and soft shadows
+/// Lighter theme with enhanced soft shadows
 
 class AppTheme {
-  // === Color Palette (from PRD) ===
-  static const primary = Color(0xFF6366F1); // Indigo
+  // === Color Palette - Lighter Theme ===
+  static const primary = Color(0xFF6366F1); // Vibrant Indigo
   static const success = Color(0xFF10B981); // Emerald
   static const warning = Color(0xFFF59E0B); // Amber
   static const error = Color(0xFFEF4444); // Red
-  
-  static const backgroundLight = Color(0xFFF5F7FA);
-  static const surfaceLight = Color(0xFFFFFFFF);
-  static const textDark = Color(0xFF1F2937);
-  static const shadowLight = Color(0xFFFFFFFF);
-  static const shadowDark = Color(0xFFD1D1D1);
 
-  // Dark mode colors
+  // Lighter background colors
+  static const backgroundLight = Color(0xFFFFFFFF); // Pure white
+  static const surfaceLight = Color(0xFFF8F9FA); // Very light gray
+  static const textDark = Color(0xFF2D3748); // Softer dark
+  static const shadowLight = Color(0xFFFFFFFF);
+  static const shadowDark = Color(0xFFE2E8F0); // Lighter shadow
+  static const accent = Color(0xFF8B5CF6); // Purple accent
+
+  // Dark mode colors (for system dark mode)
   static const backgroundDark = Color(0xFF1A1A2E);
   static const surfaceDark = Color(0xFF16213E);
   static const textLight = Color(0xFFE5E7EB);
 
-  // === Shadow Configurations ===
-  static List<BoxShadow> neuShadows({
-    bool pressed = false,
-    bool dark = false,
-  }) {
+  // === Enhanced Shadow Configurations for Lighter Theme ===
+  static List<BoxShadow> neuShadows({bool pressed = false, bool dark = false}) {
     if (pressed) {
+      // Inset shadow effect for pressed state
       return [
         BoxShadow(
-          color: dark ? Colors.black26 : shadowDark.withOpacity(0.3),
-          offset: const Offset(2, 2),
-          blurRadius: 4,
-          spreadRadius: 0,
+          color: dark
+              ? Colors.black26
+              : const Color(0xFFD1D9E6).withOpacity(0.6),
+          offset: const Offset(3, 3),
+          blurRadius: 6,
+          spreadRadius: -2,
         ),
         BoxShadow(
-          color: dark ? Colors.white10 : shadowLight.withOpacity(0.7),
-          offset: const Offset(-2, -2),
-          blurRadius: 4,
-          spreadRadius: 0,
+          color: dark ? Colors.white10 : Colors.white.withOpacity(0.9),
+          offset: const Offset(-3, -3),
+          blurRadius: 6,
+          spreadRadius: -2,
         ),
       ];
     }
+    // Enhanced raised effect for lighter theme
     return [
       BoxShadow(
-        color: dark ? Colors.black38 : shadowDark.withOpacity(0.5),
-        offset: const Offset(8, 8),
-        blurRadius: 16,
+        color: dark ? Colors.black38 : const Color(0xFFD1D9E6).withOpacity(0.8),
+        offset: const Offset(10, 10),
+        blurRadius: 20,
         spreadRadius: 0,
       ),
       BoxShadow(
-        color: dark ? Colors.white10 : shadowLight,
-        offset: const Offset(-8, -8),
-        blurRadius: 16,
+        color: dark ? Colors.white10 : Colors.white,
+        offset: const Offset(-10, -10),
+        blurRadius: 20,
         spreadRadius: 0,
       ),
     ];
@@ -72,7 +75,11 @@ class AppTheme {
       onSurface: textDark,
     ),
     textTheme: const TextTheme(
-      displayLarge: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: textDark),
+      displayLarge: TextStyle(
+        fontSize: 32,
+        fontWeight: FontWeight.bold,
+        color: textDark,
+      ),
       bodyLarge: TextStyle(fontSize: 16, color: textDark),
       bodyMedium: TextStyle(fontSize: 14, color: textDark),
     ),
@@ -100,7 +107,11 @@ class AppTheme {
       onSurface: textLight,
     ),
     textTheme: const TextTheme(
-      displayLarge: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: textLight),
+      displayLarge: TextStyle(
+        fontSize: 32,
+        fontWeight: FontWeight.bold,
+        color: textLight,
+      ),
       bodyLarge: TextStyle(fontSize: 16, color: textLight),
       bodyMedium: TextStyle(fontSize: 14, color: textLight),
     ),
