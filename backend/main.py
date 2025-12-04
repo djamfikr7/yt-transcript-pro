@@ -19,6 +19,8 @@ from services.downloader import download_audio
 from services.transcriber import transcriber
 from services import exporter, translator
 from services.diarizer import diarize_audio, merge_segments_with_speakers
+from services.search_service import search_transcripts
+from services.clip_service import create_social_clips, extract_clip
 
 # Configure logging
 logging.basicConfig(
@@ -498,3 +500,99 @@ async def get_tts_voices():
     """Get available TTS voices"""
     from services import tts_service
     return tts_service.get_available_voices()
+
+# === Semantic Search ===
+
+class SearchQuery(BaseModel):
+    query: str
+    top_k: int = 10
+
+@app.post("/search")
+async def search_all_transcripts(search_query: SearchQuery, db: AsyncSession = Depends(get_db)):
+    """Search across all transcripts semantically."""
+    import ast
+    
+    # Get all transcripts
+    result = await db.execute(select(Transcript))
+    all_transcripts = result.scalars().all()
+    
+    # Get project titles
+    projects_result = await db.execute(select(Project))
+    projects = {p.id: p.title or f"Project {p.id}" for p in projects_result.scalars().all()}
+    
+    # Format transcripts for search
+    transcripts_data = []
+    for t in all_transcripts:
+        try:
+            segments = ast.literal_eval(t.content)
+        except:
+            segments = []
+        transcripts_data.append({
+            'project_id': t.project_id,
+            'title': projects.get(t.project_id, 'Unknown'),
+            'segments': segments
+        })
+    
+    # Perform search
+    results = search_transcripts(search_query.query, transcripts_data, search_query.top_k)
+    
+    return {"query": search_query.query, "results": results}
+
+# === Social Clips ===
+
+@app.post("/projects/{project_id}/clips")
+async def generate_social_clips(
+    project_id: int, 
+    duration: int = 30,
+    count: int = 3,
+    db: AsyncSession = Depends(get_db)
+):
+    """Generate social media clips from project video."""
+    import ast
+    
+    result = await db.execute(select(Project).where(Project.id == project_id))
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Get video path
+    video_path = project.audio_path
+    if not video_path or not os.path.exists(video_path):
+        raise HTTPException(status_code=400, detail="No video file available")
+    
+    # Get transcript segments
+    result = await db.execute(select(Transcript).where(Transcript.project_id == project_id))
+    transcript = result.scalar_one_or_none()
+    if not transcript:
+        raise HTTPException(status_code=400, detail="No transcript found")
+    
+    try:
+        segments = ast.literal_eval(transcript.content)
+    except:
+        segments = []
+    
+    # Generate clips
+    output_dir = f"downloads/{project_id}/clips"
+    clips = create_social_clips(
+        video_path=video_path,
+        segments=segments,
+        output_dir=output_dir,
+        clip_count=count,
+        clip_duration=duration
+    )
+    
+    return {
+        "status": "success",
+        "clips_generated": len(clips),
+        "clips": clips
+    }
+
+@app.get("/projects/{project_id}/clips/{clip_name}")
+async def download_clip(project_id: int, clip_name: str):
+    """Download a generated social clip."""
+    clip_path = f"downloads/{project_id}/clips/{clip_name}"
+    
+    if not os.path.exists(clip_path):
+        raise HTTPException(status_code=404, detail="Clip not found")
+    
+    return FileResponse(clip_path, media_type="video/mp4", filename=clip_name)

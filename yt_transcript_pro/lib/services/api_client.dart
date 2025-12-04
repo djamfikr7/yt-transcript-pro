@@ -222,4 +222,45 @@ class ApiClient {
       throw Exception('Health check failed');
     }
   }
+
+  // === Semantic Search ===
+
+  Future<Map<String, dynamic>> searchTranscripts(
+    String query, {
+    int topK = 10,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/search'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'query': query, 'top_k': topK}),
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Search failed: ${response.body}');
+    }
+  }
+
+  // === Social Clips ===
+
+  Future<Map<String, dynamic>> generateClips(
+    int projectId, {
+    int duration = 30,
+    int count = 3,
+  }) async {
+    final response = await http.post(
+      Uri.parse(
+        '$baseUrl/projects/$projectId/clips?duration=$duration&count=$count',
+      ),
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Clip generation failed: ${response.body}');
+    }
+  }
+
+  String getClipDownloadUrl(int projectId, String clipName) {
+    return '$baseUrl/projects/$projectId/clips/$clipName';
+  }
 }
