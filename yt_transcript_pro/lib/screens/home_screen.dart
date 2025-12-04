@@ -120,15 +120,35 @@ class _HomeScreenState extends State<HomeScreen> {
 
       if (result != null && result.files.single.path != null) {
         final filePath = result.files.single.path!;
+        final fileName = result.files.single.name;
         Navigator.of(context).pop();
-        // For now, show a message - backend needs endpoint for local files
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              'Selected: ${result.files.single.name}\nLocal file upload coming soon!',
-            ),
+            content: Text('Uploading: $fileName...'),
+            backgroundColor: AppTheme.orange,
           ),
         );
+
+        try {
+          await _apiClient.uploadFile(filePath, fileName);
+          _loadProjects();
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('File uploaded! Processing...'),
+                backgroundColor: AppTheme.green,
+              ),
+            );
+          }
+        } catch (e) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Upload failed: $e'),
+              backgroundColor: AppTheme.red,
+            ),
+          );
+        }
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(

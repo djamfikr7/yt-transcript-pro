@@ -46,6 +46,39 @@ class ApiClient {
     }
   }
 
+  Future<Map<String, dynamic>> uploadFile(
+    String filePath,
+    String fileName,
+  ) async {
+    var request = http.MultipartRequest(
+      'POST',
+      Uri.parse('$baseUrl/projects/upload'),
+    );
+    request.files.add(
+      await http.MultipartFile.fromPath('file', filePath, filename: fileName),
+    );
+
+    final streamedResponse = await request.send();
+    final response = await http.Response.fromStream(streamedResponse);
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Failed to upload file: ${response.body}');
+    }
+  }
+
+  Future<Map<String, dynamic>> runDiarization(int projectId) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/projects/$projectId/diarize'),
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Diarization failed: ${response.body}');
+    }
+  }
+
   // === Transcript ===
 
   Future<Map<String, dynamic>> getTranscript(int projectId) async {

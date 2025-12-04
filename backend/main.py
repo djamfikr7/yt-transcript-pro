@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends, Response
+from fastapi import FastAPI, HTTPException, Depends, Response, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,12 +10,15 @@ import asyncio
 import logging
 import traceback
 import os
+import shutil
+import uuid
 
 from database import init_db, get_db, AsyncSessionLocal
 from models import Project, Transcript, ProjectStatus
 from services.downloader import download_audio
 from services.transcriber import transcriber
 from services import exporter, translator
+from services.diarizer import diarize_audio, merge_segments_with_speakers
 
 # Configure logging
 logging.basicConfig(
@@ -140,6 +143,123 @@ async def create_project(project_in: ProjectCreate, db: AsyncSession = Depends(g
     thread.start()
     
     return new_project
+
+@app.post("/projects/upload")
+async def upload_local_file(file: UploadFile = File(...), db: AsyncSession = Depends(get_db)):
+    """Upload a local audio/video file for transcription."""
+    # Validate file extension
+    allowed_extensions = ['.mp4', '.mkv', '.mp3', '.wav', '.webm', '.m4a', '.ogg']
+    file_ext = os.path.splitext(file.filename)[1].lower()
+    if file_ext not in allowed_extensions:
+        raise HTTPException(status_code=400, detail=f"Invalid file type. Allowed: {allowed_extensions}")
+    
+    # Create project
+    new_project = Project(url=f"local://{file.filename}", status=ProjectStatus.CREATED, title=file.filename)
+    db.add(new_project)
+    await db.commit()
+    await db.refresh(new_project)
+    
+    # Save file to disk
+    project_dir = f"downloads/{new_project.id}"
+    os.makedirs(project_dir, exist_ok=True)
+    file_path = os.path.join(project_dir, f"audio{file_ext}")
+    
+    with open(file_path, "wb") as f:
+        content = await file.read()
+        f.write(content)
+    
+    logger.info(f"[API] Saved uploaded file to {file_path}")
+    
+    # Update project with file path
+    result = await db.execute(select(Project).where(Project.id == new_project.id))
+    project = result.scalar_one()
+    project.audio_path = file_path
+    project.status = ProjectStatus.PROCESSING
+    await db.commit()
+    
+    # Start transcription in background
+    def process_upload(proj_id: int, audio_path: str):
+        asyncio.run(_process_uploaded_file(proj_id, audio_path))
+    
+    thread = threading.Thread(target=process_upload, args=(new_project.id, file_path))
+    thread.daemon = True
+    thread.start()
+    
+    return {"id": new_project.id, "status": "processing", "message": "File uploaded, transcription started"}
+
+async def _process_uploaded_file(project_id: int, audio_path: str):
+    """Process an uploaded file (transcribe only, no download needed)."""
+    async with AsyncSessionLocal() as db:
+        try:
+            logger.info(f"[UPLOAD] Transcribing {audio_path}...")
+            transcript_result = await transcriber.transcribe(audio_path)
+            logger.info(f"[UPLOAD] Transcribed {len(transcript_result['segments'])} segments")
+            
+            result = await db.execute(select(Project).where(Project.id == project_id))
+            project = result.scalar_one_or_none()
+            if not project:
+                return
+            
+            new_transcript = Transcript(
+                project_id=project.id,
+                language=transcript_result["language"],
+                content=str(transcript_result["segments"])
+            )
+            db.add(new_transcript)
+            project.status = ProjectStatus.COMPLETED
+            await db.commit()
+            
+            logger.info(f"[UPLOAD] ✅ Project {project_id} COMPLETED!")
+        except Exception as e:
+            logger.error(f"[UPLOAD] ❌ Error: {e}")
+            result = await db.execute(select(Project).where(Project.id == project_id))
+            project = result.scalar_one_or_none()
+            if project:
+                project.status = ProjectStatus.FAILED
+                await db.commit()
+
+@app.post("/projects/{project_id}/diarize")
+async def run_diarization(project_id: int, db: AsyncSession = Depends(get_db)):
+    """Run speaker diarization on a project's audio and update transcript with speaker labels."""
+    result = await db.execute(select(Project).where(Project.id == project_id))
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    if not project.audio_path or not os.path.exists(project.audio_path):
+        raise HTTPException(status_code=400, detail="No audio file available for diarization")
+    
+    # Get existing transcript
+    result = await db.execute(select(Transcript).where(Transcript.project_id == project_id))
+    transcript = result.scalar_one_or_none()
+    if not transcript:
+        raise HTTPException(status_code=400, detail="No transcript found. Transcribe first.")
+    
+    # Run diarization
+    logger.info(f"[API] Running diarization on project {project_id}...")
+    speaker_segments = diarize_audio(project.audio_path)
+    
+    if not speaker_segments:
+        return {"message": "Diarization unavailable or no speakers detected", "speakers": 0}
+    
+    # Parse existing transcript segments
+    import ast
+    try:
+        segments = ast.literal_eval(transcript.content)
+    except:
+        segments = []
+    
+    # Merge with speaker labels
+    merged_segments = merge_segments_with_speakers(segments, speaker_segments)
+    
+    # Update transcript
+    transcript.content = str(merged_segments)
+    await db.commit()
+    
+    num_speakers = len(set(s.get('speaker', '') for s in merged_segments if s.get('speaker')))
+    logger.info(f"[API] Diarization complete: {num_speakers} speakers identified")
+    
+    return {"message": "Diarization complete", "speakers": num_speakers, "segments_updated": len(merged_segments)}
 
 @app.get("/projects", response_model=List[ProjectResponse])
 async def list_projects(db: AsyncSession = Depends(get_db)):
