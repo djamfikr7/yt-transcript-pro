@@ -73,6 +73,45 @@ class AppTheme {
     ];
   }
 
+  // === ThemeData ===
+  static ThemeData lightTheme = ThemeData(
+    useMaterial3: true,
+    brightness: Brightness.light,
+    primaryColor: green,
+    scaffoldBackgroundColor: lightBg,
+    colorScheme: const ColorScheme.light(
+      primary: green,
+      secondary: orange,
+      error: red,
+      surface: lightCard,
+      onPrimary: Colors.white,
+      onSurface: lightText,
+    ),
+    textTheme: const TextTheme(
+      bodyLarge: TextStyle(color: lightText),
+      bodyMedium: TextStyle(color: textGray),
+    ),
+  );
+
+  static ThemeData darkTheme = ThemeData(
+    useMaterial3: true,
+    brightness: Brightness.dark,
+    primaryColor: green,
+    scaffoldBackgroundColor: darkBg,
+    colorScheme: const ColorScheme.dark(
+      primary: green,
+      secondary: orange,
+      error: red,
+      surface: darkCard,
+      onPrimary: Colors.white,
+      onSurface: darkText,
+    ),
+    textTheme: const TextTheme(
+      bodyLarge: TextStyle(color: darkText),
+      bodyMedium: TextStyle(color: iconGray),
+    ),
+  );
+
   // === Helper Methods ===
   static Color getBackground(BuildContext context) {
     return MediaQuery.of(context).platformBrightness == Brightness.dark
