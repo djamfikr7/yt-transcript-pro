@@ -1,22 +1,76 @@
-def to_srt(segments):
-    """Convert segments to SRT format"""
-    output = []
+# Transcript Export Service
+# Converts segments to SRT, VTT, and TXT formats
+
+def format_timestamp_srt(seconds: float) -> str:
+    """Convert seconds to SRT timestamp format: HH:MM:SS,mmm"""
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    secs = int(seconds % 60)
+    millis = int((seconds - int(seconds)) * 1000)
+    return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
+
+def format_timestamp_vtt(seconds: float) -> str:
+    """Convert seconds to VTT timestamp format: HH:MM:SS.mmm"""
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    secs = int(seconds % 60)
+    millis = int((seconds - int(seconds)) * 1000)
+    return f"{hours:02d}:{minutes:02d}:{secs:02d}.{millis:03d}"
+
+def to_srt(segments: list) -> str:
+    """Convert transcript segments to SRT subtitle format"""
+    lines = []
     for i, seg in enumerate(segments, 1):
-        start = _format_timestamp(seg['start'])
-        end = _format_timestamp(seg['end'])
-        text = seg['text'].strip()
-        output.append(f"{i}\n{start} --> {end}\n{text}\n")
-    return "\n".join(output)
+        start = seg.get('start', 0)
+        end = seg.get('end', 0)
+        text = seg.get('text', '').strip()
+        speaker = seg.get('speaker', '')
+        
+        if speaker:
+            text = f"[{speaker}] {text}"
+        
+        lines.append(str(i))
+        lines.append(f"{format_timestamp_srt(start)} --> {format_timestamp_srt(end)}")
+        lines.append(text)
+        lines.append("")  # Blank line between entries
+    
+    return "\n".join(lines)
 
-def to_txt(segments):
-    """Convert segments to plain text"""
-    return "\n".join([seg['text'].strip() for seg in segments])
+def to_vtt(segments: list) -> str:
+    """Convert transcript segments to WebVTT subtitle format"""
+    lines = ["WEBVTT", ""]  # VTT header
+    
+    for i, seg in enumerate(segments, 1):
+        start = seg.get('start', 0)
+        end = seg.get('end', 0)
+        text = seg.get('text', '').strip()
+        speaker = seg.get('speaker', '')
+        
+        if speaker:
+            text = f"<v {speaker}>{text}"
+        
+        lines.append(f"{format_timestamp_vtt(start)} --> {format_timestamp_vtt(end)}")
+        lines.append(text)
+        lines.append("")
+    
+    return "\n".join(lines)
 
-def _format_timestamp(seconds):
-    """Convert seconds to HH:MM:SS,mmm"""
-    millis = int((seconds % 1) * 1000)
-    seconds = int(seconds)
-    hours = seconds // 3600
-    minutes = (seconds % 3600) // 60
-    seconds = seconds % 60
-    return f"{hours:02d}:{minutes:02d}:{seconds:02d},{millis:03d}"
+def to_txt(segments: list) -> str:
+    """Convert transcript segments to plain text with timestamps"""
+    lines = []
+    for seg in segments:
+        start = seg.get('start', 0)
+        text = seg.get('text', '').strip()
+        speaker = seg.get('speaker', '')
+        
+        # Format: [MM:SS] [SPEAKER] Text
+        mins = int(start // 60)
+        secs = int(start % 60)
+        timestamp = f"[{mins:02d}:{secs:02d}]"
+        
+        if speaker:
+            lines.append(f"{timestamp} [{speaker}] {text}")
+        else:
+            lines.append(f"{timestamp} {text}")
+    
+    return "\n".join(lines)

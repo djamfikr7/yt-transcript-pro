@@ -191,6 +191,9 @@ async def export_transcript(project_id: int, format: str = "txt", db: AsyncSessi
     if format == "srt":
         content = exporter.to_srt(segments)
         filename = f"transcript_{project_id}.srt"
+    elif format == "vtt":
+        content = exporter.to_vtt(segments)
+        filename = f"transcript_{project_id}.vtt"
     else:
         content = exporter.to_txt(segments)
         filename = f"transcript_{project_id}.txt"
@@ -200,6 +203,7 @@ async def export_transcript(project_id: int, format: str = "txt", db: AsyncSessi
         media_type="text/plain",
         headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
+
 
 @app.post("/projects/{project_id}/translate")
 async def translate_project(project_id: int, target_lang: str = "es", db: AsyncSession = Depends(get_db)):

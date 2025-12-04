@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../services/api_client.dart';
 import '../theme/app_theme.dart';
 import '../widgets/neu_widgets.dart';
@@ -19,7 +20,10 @@ class TranscriptViewerScreen extends StatefulWidget {
 
 class _TranscriptViewerScreenState extends State<TranscriptViewerScreen> {
   final ApiClient _apiClient = ApiClient();
+  final TextEditingController _searchController = TextEditingController();
+
   List<dynamic> _segments = [];
+  List<dynamic> _filteredSegments = [];
   List<dynamic> _translatedSegments = [];
   bool _isLoading = true;
   bool _isTranslating = false;
@@ -27,11 +31,18 @@ class _TranscriptViewerScreenState extends State<TranscriptViewerScreen> {
   String? _errorMessage;
   String _language = '';
   String _targetLanguage = 'es';
+  String _searchQuery = '';
 
   @override
   void initState() {
     super.initState();
     _loadTranscript();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadTranscript() async {
@@ -40,6 +51,7 @@ class _TranscriptViewerScreenState extends State<TranscriptViewerScreen> {
       if (mounted) {
         setState(() {
           _segments = transcript['segments'] ?? [];
+          _filteredSegments = _segments;
           _language = transcript['language'] ?? 'unknown';
           _isLoading = false;
           _errorMessage = null;
@@ -52,6 +64,33 @@ class _TranscriptViewerScreenState extends State<TranscriptViewerScreen> {
           _isLoading = false;
         });
       }
+    }
+  }
+
+  void _filterSegments(String query) {
+    setState(() {
+      _searchQuery = query;
+      if (query.isEmpty) {
+        _filteredSegments = _segments;
+      } else {
+        _filteredSegments = _segments.where((seg) {
+          final text = (seg['text'] ?? '').toString().toLowerCase();
+          return text.contains(query.toLowerCase());
+        }).toList();
+      }
+    });
+  }
+
+  Future<void> _copyFullTranscript() async {
+    final text = _segments.map((s) => s['text'] ?? '').join(' ');
+    await Clipboard.setData(ClipboardData(text: text));
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Transcript copied to clipboard!'),
+          backgroundColor: AppTheme.green,
+        ),
+      );
     }
   }
 
@@ -103,6 +142,7 @@ class _TranscriptViewerScreenState extends State<TranscriptViewerScreen> {
             title: Text('Exported ${format.toUpperCase()}'),
             content: SizedBox(
               width: double.maxFinite,
+              height: 300,
               child: SingleChildScrollView(child: SelectableText(content)),
             ),
             actions: [
@@ -111,11 +151,14 @@ class _TranscriptViewerScreenState extends State<TranscriptViewerScreen> {
                 child: const Text('Close'),
               ),
               ElevatedButton(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Copied to clipboard!')),
-                  );
-                  Navigator.pop(context);
+                onPressed: () async {
+                  await Clipboard.setData(ClipboardData(text: content));
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Copied to clipboard!')),
+                    );
+                    Navigator.pop(context);
+                  }
                 },
                 child: const Text('Copy'),
               ),
@@ -160,6 +203,12 @@ class _TranscriptViewerScreenState extends State<TranscriptViewerScreen> {
           ],
         ),
         actions: [
+          // Copy Button
+          IconButton(
+            icon: const Icon(Icons.copy),
+            onPressed: _copyFullTranscript,
+            tooltip: 'Copy all text',
+          ),
           // Translate Button
           IconButton(
             icon: _isTranslating
@@ -197,6 +246,11 @@ class _TranscriptViewerScreenState extends State<TranscriptViewerScreen> {
                         title: const Text('Subtitles (.srt)'),
                         onTap: () => _exportFile('srt'),
                       ),
+                      ListTile(
+                        leading: const Icon(Icons.web),
+                        title: const Text('WebVTT (.vtt)'),
+                        onTap: () => _exportFile('vtt'),
+                      ),
                     ],
                   ),
                 ),
@@ -205,7 +259,49 @@ class _TranscriptViewerScreenState extends State<TranscriptViewerScreen> {
           ),
         ],
       ),
-      body: SafeArea(child: _buildBody()),
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Search Bar
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: TextField(
+                controller: _searchController,
+                onChanged: _filterSegments,
+                decoration: InputDecoration(
+                  hintText: 'Search transcript...',
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: _searchQuery.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: () {
+                            _searchController.clear();
+                            _filterSegments('');
+                          },
+                        )
+                      : null,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  filled: true,
+                  fillColor: AppTheme.getCardColor(context),
+                ),
+              ),
+            ),
+            // Results count
+            if (_searchQuery.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Text(
+                  '${_filteredSegments.length} results found',
+                  style: TextStyle(color: AppTheme.textGray, fontSize: 12),
+                ),
+              ),
+            // Body
+            Expanded(child: _buildBody()),
+          ],
+        ),
+      ),
     );
   }
 
@@ -242,19 +338,23 @@ class _TranscriptViewerScreenState extends State<TranscriptViewerScreen> {
       );
     }
 
-    if (_segments.isEmpty) {
+    if (_filteredSegments.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              Icons.description_outlined,
+              _searchQuery.isNotEmpty
+                  ? Icons.search_off
+                  : Icons.description_outlined,
               size: 64,
               color: AppTheme.iconGray,
             ),
             const SizedBox(height: 16),
             Text(
-              'No transcript available',
+              _searchQuery.isNotEmpty
+                  ? 'No results for "$_searchQuery"'
+                  : 'No transcript available',
               style: TextStyle(fontSize: 16, color: AppTheme.textGray),
             ),
           ],
@@ -263,22 +363,25 @@ class _TranscriptViewerScreenState extends State<TranscriptViewerScreen> {
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.all(20),
-      itemCount: _segments.length,
+      padding: const EdgeInsets.all(16),
+      itemCount: _filteredSegments.length,
       itemBuilder: (context, index) {
-        final segment = _segments[index];
+        final segment = _filteredSegments[index];
+        final originalIndex = _segments.indexOf(segment);
         final start = (segment['start'] ?? 0.0).toDouble();
         final end = (segment['end'] ?? 0.0).toDouble();
         final text = segment['text'] ?? '';
         final speaker = segment['speaker'];
 
         String? translatedText;
-        if (_showTranslation && index < _translatedSegments.length) {
-          translatedText = _translatedSegments[index]['text'];
+        if (_showTranslation &&
+            originalIndex >= 0 &&
+            originalIndex < _translatedSegments.length) {
+          translatedText = _translatedSegments[originalIndex]['text'];
         }
 
         return Padding(
-          padding: const EdgeInsets.only(bottom: 16),
+          padding: const EdgeInsets.only(bottom: 12),
           child: NeuCard(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -316,6 +419,25 @@ class _TranscriptViewerScreenState extends State<TranscriptViewerScreen> {
                         ),
                       ),
                     ],
+                    const Spacer(),
+                    // Copy segment button
+                    IconButton(
+                      icon: Icon(
+                        Icons.copy,
+                        size: 16,
+                        color: AppTheme.iconGray,
+                      ),
+                      onPressed: () async {
+                        await Clipboard.setData(ClipboardData(text: text));
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Segment copied!')),
+                          );
+                        }
+                      },
+                      constraints: const BoxConstraints(),
+                      padding: EdgeInsets.zero,
+                    ),
                   ],
                 ),
                 const SizedBox(height: 12),
