@@ -5,6 +5,9 @@ import '../theme/app_theme.dart';
 import '../services/api_client.dart';
 import '../main.dart';
 import 'transcript_viewer_screen.dart';
+import 'search_screen.dart';
+import 'favorites_screen.dart';
+import 'settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -402,20 +405,61 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _buildNavIcon(Icons.home, true),
-          _buildNavIcon(Icons.search, false),
-          _buildNavIcon(Icons.favorite_border, false),
-          _buildNavIcon(Icons.settings, false),
+          _buildNavButton(Icons.home, 'Home', true, null),
+          _buildNavButton(Icons.search, 'Search', false, () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const SearchScreen()),
+            );
+          }),
+          _buildNavButton(Icons.favorite_border, 'Completed', false, () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const FavoritesScreen()),
+            );
+          }),
+          _buildNavButton(Icons.settings, 'Settings', false, () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const SettingsScreen()),
+            );
+          }),
         ],
       ),
     );
   }
 
-  Widget _buildNavIcon(IconData icon, bool isActive) {
-    return Icon(
-      icon,
-      color: isActive ? AppTheme.green : AppTheme.iconGray,
-      size: 28,
+  Widget _buildNavButton(
+    IconData icon,
+    String label,
+    bool isActive,
+    VoidCallback? onTap,
+  ) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.all(8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              color: isActive ? AppTheme.green : AppTheme.iconGray,
+              size: 24,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 10,
+                color: isActive ? AppTheme.green : AppTheme.iconGray,
+                fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

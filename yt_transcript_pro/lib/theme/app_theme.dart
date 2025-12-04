@@ -114,13 +114,11 @@ class AppTheme {
 
   // === Helper Methods ===
   static Color getBackground(BuildContext context) {
-    return MediaQuery.of(context).platformBrightness == Brightness.dark
-        ? darkBg
-        : lightBg;
+    return Theme.of(context).brightness == Brightness.dark ? darkBg : lightBg;
   }
 
   static Color getCardColor(BuildContext context) {
-    return MediaQuery.of(context).platformBrightness == Brightness.dark
+    return Theme.of(context).brightness == Brightness.dark
         ? darkCard
         : lightCard;
   }
@@ -129,11 +127,17 @@ class AppTheme {
     return getCardColor(context);
   }
 
+  static Color getTextColor(BuildContext context) {
+    return Theme.of(context).brightness == Brightness.dark
+        ? darkText
+        : lightText;
+  }
+
   static List<BoxShadow> getShadows(
     BuildContext context, {
     bool pressed = false,
   }) {
-    return MediaQuery.of(context).platformBrightness == Brightness.dark
+    return Theme.of(context).brightness == Brightness.dark
         ? darkShadows(pressed: pressed)
         : lightShadows(pressed: pressed);
   }
