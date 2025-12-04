@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 import '../services/api_client.dart';
 import '../theme/app_theme.dart';
 import '../widgets/neu_widgets.dart';
@@ -29,10 +30,12 @@ class _TranscriptViewerScreenState extends State<TranscriptViewerScreen> {
   final ScrollController _scrollController = ScrollController();
 
   VideoPlayerController? _videoController;
+  YoutubePlayerController? _ytController;
   List<dynamic> _segments = [];
   List<dynamic> _filteredSegments = [];
   List<dynamic> _translatedSegments = [];
   Map<String, dynamic>? _projectDetails;
+  String? _videoId;
 
   bool _isLoading = true;
   bool _isTranslating = false;
@@ -69,6 +72,7 @@ class _TranscriptViewerScreenState extends State<TranscriptViewerScreen> {
     _searchController.dispose();
     _scrollController.dispose();
     _videoController?.dispose();
+    _ytController?.close();
     super.dispose();
   }
 
@@ -88,9 +92,36 @@ class _TranscriptViewerScreenState extends State<TranscriptViewerScreen> {
   }
 
   void _initVideoPlayer(String youtubeUrl) {
-    // Note: video_player doesn't support YouTube directly
-    // For now, we'll show an embedded YouTube player option
-    // In production, you'd use youtube_player_flutter or similar
+    // Extract video ID from YouTube URL
+    final videoId = _extractVideoId(youtubeUrl);
+    if (videoId != null) {
+      setState(() => _videoId = videoId);
+      _ytController = YoutubePlayerController.fromVideoId(
+        videoId: videoId,
+        autoPlay: false,
+        params: const YoutubePlayerParams(
+          showControls: true,
+          mute: false,
+          showFullscreenButton: true,
+          loop: false,
+        ),
+      );
+    }
+  }
+
+  String? _extractVideoId(String url) {
+    // Handle various YouTube URL formats
+    final patterns = [
+      RegExp(r'(?:youtube\.com\/watch\?v=)([^&]+)'),
+      RegExp(r'(?:youtu\.be\/)([^?]+)'),
+      RegExp(r'(?:youtube\.com\/embed\/)([^?]+)'),
+      RegExp(r'(?:youtube\.com\/v\/)([^?]+)'),
+    ];
+    for (var pattern in patterns) {
+      final match = pattern.firstMatch(url);
+      if (match != null) return match.group(1);
+    }
+    return null;
   }
 
   Future<void> _loadTranscript() async {
@@ -468,63 +499,73 @@ class _TranscriptViewerScreenState extends State<TranscriptViewerScreen> {
         color: Colors.black,
         borderRadius: BorderRadius.circular(12),
       ),
-      child: AspectRatio(
-        aspectRatio: 16 / 9,
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            // Placeholder for video
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.black87,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.play_circle_outline,
-                      size: 64,
-                      color: Colors.white54,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Video Preview',
-                      style: TextStyle(color: Colors.white54),
-                    ),
-                    const SizedBox(height: 16),
-                    if (_projectDetails?['url'] != null)
-                      ElevatedButton.icon(
-                        onPressed: () async {
-                          final url = Uri.parse(_projectDetails!['url']);
-                          if (await canLaunchUrl(url)) {
-                            await launchUrl(
-                              url,
-                              mode: LaunchMode.externalApplication,
-                            );
-                          }
-                        },
-                        icon: const Icon(Icons.open_in_new),
-                        label: const Text('Open on YouTube'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: AspectRatio(
+          aspectRatio: 16 / 9,
+          child: Stack(
+            children: [
+              // YouTube Player or fallback
+              if (_ytController != null && _videoId != null)
+                YoutubePlayer(controller: _ytController!)
+              else
+                Container(
+                  color: Colors.black87,
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.play_circle_outline,
+                          size: 64,
+                          color: Colors.white54,
                         ),
-                      ),
-                  ],
+                        const SizedBox(height: 8),
+                        Text(
+                          'Video Preview',
+                          style: TextStyle(color: Colors.white54),
+                        ),
+                        const SizedBox(height: 16),
+                        if (_projectDetails?['url'] != null)
+                          ElevatedButton.icon(
+                            onPressed: () async {
+                              final url = Uri.parse(_projectDetails!['url']);
+                              if (await canLaunchUrl(url)) {
+                                await launchUrl(
+                                  url,
+                                  mode: LaunchMode.externalApplication,
+                                );
+                              }
+                            },
+                            icon: const Icon(Icons.open_in_new),
+                            label: const Text('Open on YouTube'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              // Close button
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    shape: BoxShape.circle,
+                  ),
+                  child: IconButton(
+                    icon: Icon(Icons.close, color: Colors.white70, size: 20),
+                    onPressed: () => setState(() => _showVideoPlayer = false),
+                    constraints: const BoxConstraints(),
+                    padding: const EdgeInsets.all(6),
+                  ),
                 ),
               ),
-            ),
-            // Toggle button
-            Positioned(
-              top: 8,
-              right: 8,
-              child: IconButton(
-                icon: Icon(Icons.close, color: Colors.white70),
-                onPressed: () => setState(() => _showVideoPlayer = false),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
