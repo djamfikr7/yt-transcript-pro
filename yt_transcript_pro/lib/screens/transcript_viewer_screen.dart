@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import '../services/api_client.dart';
 import '../theme/app_theme.dart';
 import '../widgets/neu_widgets.dart';
+import 'repurpose_screen.dart';
+import 'dubbing_screen.dart';
 
 class TranscriptViewerScreen extends StatefulWidget {
   final int projectId;
@@ -256,6 +258,50 @@ class _TranscriptViewerScreenState extends State<TranscriptViewerScreen> {
                 ),
               );
             },
+          ),
+          // AI Tools Menu
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.auto_awesome),
+            tooltip: 'AI Tools',
+            onSelected: (value) {
+              if (value == 'repurpose') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => RepurposeScreen(
+                      projectId: widget.projectId,
+                      title: widget.title,
+                    ),
+                  ),
+                );
+              } else if (value == 'dubbing') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => DubbingScreen(
+                      projectId: widget.projectId,
+                      title: widget.title,
+                    ),
+                  ),
+                );
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'repurpose',
+                child: ListTile(
+                  leading: Icon(Icons.summarize),
+                  title: Text('Repurpose Content'),
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'dubbing',
+                child: ListTile(
+                  leading: Icon(Icons.record_voice_over),
+                  title: Text('AI Dubbing'),
+                ),
+              ),
+            ],
           ),
         ],
       ),
