@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import '../widgets/neu_widgets.dart';
 import '../theme/app_theme.dart';
+import '../services/api_client.dart';
+import 'transcript_viewer_screen.dart';
 
-/// Modern Home Screen - Clean Neumorphic Design
+/// Modern Home Screen - Connected to Backend
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
 
@@ -12,15 +15,149 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _urlController = TextEditingController();
+  final ApiClient _apiClient = ApiClient();
+
+  List<dynamic> _projects = [];
+  bool _isLoading = true;
+  String? _errorMessage;
+  Timer? _refreshTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProjects();
+    // Auto-refresh every 3 seconds
+    _refreshTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+      _loadProjects();
+    });
+  }
 
   @override
   void dispose() {
     _urlController.dispose();
+    _refreshTimer?.cancel();
     super.dispose();
+  }
+
+  Future<void> _loadProjects() async {
+    try {
+      final projects = await _apiClient.getProjects();
+      if (mounted) {
+        setState(() {
+          _projects = projects;
+          _isLoading = false;
+          _errorMessage = null;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Failed to load projects';
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _createProject(String url) async {
+    try {
+      await _apiClient.createProject(url);
+      _urlController.clear();
+      Navigator.of(context).pop(); // Close dialog
+      _loadProjects(); // Refresh list
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Project created! Processing...'),
+            backgroundColor: AppTheme.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: AppTheme.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showUrlDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppTheme.getCardColor(context),
+        title: const Text('Enter YouTube URL'),
+        content: TextField(
+          controller: _urlController,
+          decoration: const InputDecoration(
+            hintText: 'https://youtube.com/watch?v=...',
+            border: OutlineInputBorder(),
+          ),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (_urlController.text.isNotEmpty) {
+                _createProject(_urlController.text);
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.green),
+            child: const Text('Process'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _getStatusEmoji(String status) {
+    switch (status) {
+      case 'created':
+        return '⏳';
+      case 'downloading':
+        return '⬇️';
+      case 'processing':
+        return '⚙️';
+      case 'completed':
+        return '✅';
+      case 'failed':
+        return '❌';
+      default:
+        return '📄';
+    }
+  }
+
+  Color _getStatusColor(String status) {
+    switch (status) {
+      case 'completed':
+        return AppTheme.green;
+      case 'failed':
+        return AppTheme.red;
+      case 'downloading':
+      case 'processing':
+        return AppTheme.orange;
+      default:
+        return Colors.grey;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final completedCount = _projects
+        .where((p) => p['status'] == 'completed')
+        .length;
+    final totalCount = _projects.length;
+    final progress = totalCount > 0 ? completedCount / totalCount : 0.0;
+
     return Scaffold(
       backgroundColor: AppTheme.getBackground(context),
       body: SafeArea(
@@ -40,7 +177,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: Column(
                     children: [
                       // Progress Ring
-                      const ProgressRing(progress: 0.75, centerText: 'Ready'),
+                      ProgressRing(
+                        progress: progress,
+                        centerText: '$completedCount/$totalCount',
+                      ),
 
                       const SizedBox(height: 32),
 
@@ -49,33 +189,22 @@ class _HomeScreenState extends State<HomeScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
                           NeuIconButton(
-                            icon: Icons.upload_file,
-                            label: 'Upload',
-                            iconColor: AppTheme.green,
-                            onTap: () {
-                              // TODO: Upload file
-                            },
-                          ),
-                          NeuIconButton(
                             icon: Icons.link,
                             label: 'URL',
-                            onTap: () {
-                              _showUrlDialog();
-                            },
+                            iconColor: AppTheme.green,
+                            onTap: _showUrlDialog,
                           ),
                           NeuIconButton(
-                            icon: Icons.add,
-                            label: 'Shortcut',
-                            onTap: () {
-                              // TODO: Shortcut
-                            },
+                            icon: Icons.refresh,
+                            label: 'Refresh',
+                            onTap: _loadProjects,
                           ),
                         ],
                       ),
 
                       const SizedBox(height: 32),
 
-                      // Transactions Section
+                      // Projects Header
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -83,42 +212,31 @@ class _HomeScreenState extends State<HomeScreen> {
                             'Recent Projects',
                             style: Theme.of(context).textTheme.labelLarge,
                           ),
-                          Icon(
-                            Icons.arrow_forward_ios,
-                            size: 14,
-                            color: AppTheme.iconGray,
-                          ),
+                          if (_isLoading)
+                            const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          else
+                            Icon(
+                              Icons.arrow_forward_ios,
+                              size: 14,
+                              color: AppTheme.iconGray,
+                            ),
                         ],
                       ),
 
                       const SizedBox(height: 16),
 
-                      // Transaction List (Empty State for now)
-                      Expanded(
-                        child: Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.video_library_outlined,
-                                size: 64,
-                                color: AppTheme.iconGray.withOpacity(0.3),
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                'No projects yet',
-                                style: Theme.of(context).textTheme.bodyMedium,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
+                      // Projects List
+                      Expanded(child: _buildProjectsList()),
                     ],
                   ),
                 ),
               ),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
 
               // Bottom Navigation
               _buildBottomNav(),
@@ -129,73 +247,146 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildHeader() {
-    return Row(
-      children: [
-        // Profile Avatar
-        Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: AppTheme.green.withOpacity(0.2),
-          ),
-          child: const Icon(Icons.person, color: AppTheme.green),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Hello, User',
-                style: Theme.of(context).textTheme.labelLarge,
-              ),
-              const SizedBox(height: 2),
-              Text(
-                'YouTube Transcript Pro',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-            ],
-          ),
-        ),
-        // Notification Badge
-        Stack(
+  Widget _buildProjectsList() {
+    if (_isLoading && _projects.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_errorMessage != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            NeuButton(
-              size: 48,
-              onTap: () {
-                // TODO: Show notifications
-              },
-              child: const Icon(Icons.notifications_outlined, size: 22),
-            ),
-            Positioned(
-              top: 8,
-              right: 8,
-              child: Container(
-                width: 8,
-                height: 8,
-                decoration: const BoxDecoration(
-                  color: AppTheme.orange,
-                  shape: BoxShape.circle,
-                ),
-              ),
+            Icon(Icons.error_outline, size: 48, color: AppTheme.red),
+            const SizedBox(height: 16),
+            Text(_errorMessage!, style: TextStyle(color: AppTheme.red)),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _loadProjects,
+              child: const Text('Retry'),
             ),
           ],
         ),
-        const SizedBox(width: 12),
-        // Theme Toggle
-        NeuButton(
-          size: 48,
-          onTap: () {
-            // TODO: Toggle theme
-          },
-          child: Icon(
-            Theme.of(context).brightness == Brightness.dark
-                ? Icons.light_mode
-                : Icons.dark_mode,
-            size: 22,
+      );
+    }
+
+    if (_projects.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.inbox_outlined, size: 64, color: AppTheme.iconGray),
+            const SizedBox(height: 16),
+            Text(
+              'No projects yet',
+              style: TextStyle(color: AppTheme.textGray, fontSize: 16),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Click the URL button to get started',
+              style: TextStyle(color: AppTheme.iconGray, fontSize: 14),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      itemCount: _projects.length,
+      itemBuilder: (context, index) {
+        final project = _projects[index];
+        final status = project['status'] ?? 'unknown';
+        final title = project['title'] ?? 'Processing...';
+        final id = project['id'];
+
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: InkWell(
+            onTap: status == 'completed'
+                ? () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) =>
+                            TranscriptViewerScreen(projectId: id, title: title),
+                      ),
+                    );
+                  }
+                : null,
+            child: NeuCard(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  // Status Emoji
+                  Text(
+                    _getStatusEmoji(status),
+                    style: const TextStyle(fontSize: 24),
+                  ),
+                  const SizedBox(width: 16),
+                  // Project Info
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          status.toUpperCase(),
+                          style: TextStyle(
+                            color: _getStatusColor(status),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Arrow for completed projects
+                  if (status == 'completed')
+                    Icon(
+                      Icons.arrow_forward_ios,
+                      size: 16,
+                      color: AppTheme.iconGray,
+                    ),
+                ],
+              ),
+            ),
           ),
+        );
+      },
+    );
+  }
+
+  Widget _buildHeader() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Hello!',
+              style: TextStyle(fontSize: 16, color: AppTheme.textGray),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'YT Transcript Pro',
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        CircleAvatar(
+          radius: 24,
+          backgroundColor: AppTheme.green,
+          child: const Icon(Icons.person, color: Colors.white),
         ),
       ],
     );
@@ -203,90 +394,24 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildBottomNav() {
     return NeuCard(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
-      borderRadius: 20,
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _buildNavItem(Icons.home, 'Home', true),
-          _buildNavItem(Icons.analytics_outlined, 'Analytics', false),
-          _buildNavItem(Icons.wallet_outlined, 'Payments', false),
-          _buildNavItem(Icons.more_horiz, 'More', false),
+          _buildNavIcon(Icons.home, true),
+          _buildNavIcon(Icons.search, false),
+          _buildNavIcon(Icons.favorite_border, false),
+          _buildNavIcon(Icons.settings, false),
         ],
       ),
     );
   }
 
-  Widget _buildNavItem(IconData icon, String label, bool isActive) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(
-          icon,
-          color: isActive ? AppTheme.green : AppTheme.iconGray,
-          size: 24,
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: isActive ? AppTheme.green : AppTheme.iconGray,
-            fontSize: 11,
-          ),
-        ),
-      ],
-    );
-  }
-
-  void _showUrlDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: NeuCard(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Enter YouTube URL',
-                style: Theme.of(context).textTheme.displayMedium,
-              ),
-              const SizedBox(height: 20),
-              NeuTextField(
-                hint: 'https://youtube.com/watch?v=...',
-                controller: _urlController,
-                prefixIcon: Icons.link,
-              ),
-              const SizedBox(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Cancel'),
-                  ),
-                  const SizedBox(width: 12),
-                  ElevatedButton(
-                    onPressed: () {
-                      // TODO: Process URL
-                      Navigator.pop(context);
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.green,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 12,
-                      ),
-                    ),
-                    child: const Text('Process'),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
+  Widget _buildNavIcon(IconData icon, bool isActive) {
+    return Icon(
+      icon,
+      color: isActive ? AppTheme.green : AppTheme.iconGray,
+      size: 28,
     );
   }
 }
