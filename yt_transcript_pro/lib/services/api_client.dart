@@ -39,6 +39,13 @@ class ApiClient {
     }
   }
 
+  Future<void> deleteProject(int id) async {
+    final response = await http.delete(Uri.parse('$baseUrl/projects/$id'));
+    if (response.statusCode != 200 && response.statusCode != 204) {
+      throw Exception('Failed to delete project: ${response.body}');
+    }
+  }
+
   // === Transcript ===
 
   Future<Map<String, dynamic>> getTranscript(int projectId) async {

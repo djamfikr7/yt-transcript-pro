@@ -154,6 +154,30 @@ async def get_project(project_id: int, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Project not found")
     return project
 
+@app.delete("/projects/{project_id}")
+async def delete_project(project_id: int, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Project).where(Project.id == project_id))
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Delete associated transcripts first
+    from sqlalchemy import delete as sql_delete
+    await db.execute(sql_delete(Transcript).where(Transcript.project_id == project_id))
+    await db.delete(project)
+    await db.commit()
+    
+    # Clean up any associated files
+    import shutil
+    project_dir = f"downloads/{project_id}"
+    if os.path.exists(project_dir):
+        try:
+            shutil.rmtree(project_dir)
+        except Exception as e:
+            logger.warning(f"Failed to delete project files: {e}")
+    
+    return {"message": "Project deleted successfully"}
+
 @app.get("/projects/{project_id}/transcript")
 async def get_transcript(project_id: int, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Transcript).where(Transcript.project_id == project_id))
