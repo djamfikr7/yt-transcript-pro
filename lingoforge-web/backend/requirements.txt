@@ -1,0 +1,47 @@
+# LingoForge Studio Backend Requirements
+# 100% Free Tools
+
+# Core Framework
+fastapi>=0.104.1
+uvicorn>=0.24.0
+python-multipart>=0.0.6
+pydantic>=2.5.2
+
+# Database
+sqlalchemy>=2.0.23
+aiosqlite>=0.19.0
+
+# YouTube Download
+yt-dlp>=2023.11.16
+
+# Transcription
+faster-whisper>=0.9.0
+
+# Translation
+argostranslate>=1.9.1
+langdetect>=1.0.9
+polyglot>=16.7.4
+
+# TTS
+edge-tts>=6.1.9
+
+# Content Analysis
+google-generativeai>=0.3.0
+requests>=2.31.0
+
+# Caching & Performance
+redis>=5.0.0  # Optional, will fallback to disk cache
+
+# System Utilities
+psutil>=5.9.0
+
+# FFmpeg Python wrapper
+ffmpeg-python>=0.2.0
+
+# CORS
+# (included in fastapi)
+
+# Utilities
+python-dotenv>=1.0.0
+aiofiles>=23.2.1
+asyncio>=3.4.3
