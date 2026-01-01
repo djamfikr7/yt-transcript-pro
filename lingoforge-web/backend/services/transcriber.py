@@ -27,6 +27,7 @@ class TranscriberService:
         Returns:
             Dict with transcript, segments, and speaker info
         """
+        print(f"🎙️ Starting transcription for project {project_id}: {video_path}")
         try:
             audio_input = video_path # Pass video directly to faster-whisper
             
@@ -34,11 +35,33 @@ class TranscriberService:
             # Note: This requires faster-whisper to be installed
             try:
                 from faster_whisper import WhisperModel
+                print(f"📦 faster-whisper imported successfully")
                 
                 def _transcribe_params(input_path):
                     model_size = "base"
-                    model = WhisperModel(model_size, device="cpu", compute_type="int8")
+                    # Force CPU to avoid CUDA/cuDNN compatibility issues
+                    # TODO: Fix CUDA compatibility when cuDNN libraries are properly aligned
+                    device = "cpu"
+                    compute_type = "int8"
                     
+                    print(f"🔧 Loading Whisper model: size={model_size}, device={device}, compute_type={compute_type}")
+                    
+                    try:
+                        model = WhisperModel(model_size, device=device, compute_type=compute_type)
+                        print(f"✅ Whisper model loaded successfully")
+                    except Exception as e:
+                        print(f"⚠️ Failed to load Whisper model with {device}: {e}")
+                        # Try loading with int32 compute type as fallback
+                        try:
+                            model = WhisperModel(model_size, device=device, compute_type="int32")
+                            print(f"✅ Loaded Whisper model with int32 compute type")
+                        except Exception as e2:
+                            print(f"⚠️ Failed to load Whisper model with int32: {e2}")
+                            # If all attempts fail, return None to trigger fallback method
+                            print(f"⚠️ All Whisper model loading attempts failed, triggering fallback transcription method")
+                            return None
+                    
+                    print(f"🎙️ Starting transcription on: {input_path}")
                     segments, info = model.transcribe(
                         input_path,
                         beam_size=5,
@@ -47,9 +70,17 @@ class TranscriberService:
                     
                     # Consume generator to force processing in thread
                     result_segments = list(segments)
+                    print(f"📝 Transcription complete: {len(result_segments)} segments, language={info.language}")
                     return result_segments, info
 
+                print(f"🔄 Running transcription in thread...")
                 segments, info = await asyncio.to_thread(_transcribe_params, audio_input)
+                print(f"🔄 Transcription thread completed")
+                
+                # Check if transcription failed (returned None)
+                if segments is None or info is None:
+                    print(f"⚠️ Transcription returned None, triggering fallback method")
+                    return await self._transcribe_fallback(video_path, project_id)
                 
                 transcript_text = ""
                 segments_list = []
@@ -100,16 +131,19 @@ class TranscriberService:
     
     async def _transcribe_fallback(self, audio_path: str, project_id: int) -> Dict[str, Any]:
         """Fallback transcription using whisper command line"""
+        print(f"🔄 Fallback transcription triggered for project {project_id}: {audio_path}")
         try:
-            output_path = f"{self.cache_dir}/{project_id}_transcript.txt"
+            # Use JSON output format to get segments with timestamps
+            output_base = f"{self.cache_dir}/{project_id}_transcript"
             
             cmd = [
                 "whisper", audio_path,
                 "--model", "base",
                 "--output_dir", self.cache_dir,
-                "--output_format", "txt",
+                "--output_format", "json",  # Use JSON for segments
                 "--verbose", "False"
             ]
+            print(f"🔧 Running whisper command: {' '.join(cmd)}")
             
             process = await asyncio.create_subprocess_exec(
                 *cmd,
@@ -119,22 +153,43 @@ class TranscriberService:
             
             await process.communicate()
             
-            # Read the generated transcript
-            if os.path.exists(output_path):
-                with open(output_path, 'r', encoding='utf-8') as f:
-                    transcript = f.read()
+            # Read the generated transcript JSON
+            json_path = f"{output_base}.json"
+            if os.path.exists(json_path):
+                import json
+                with open(json_path, 'r', encoding='utf-8') as f:
+                    transcript_data = json.load(f)
+                
+                # Parse segments from JSON
+                segments_list = []
+                transcript_text = ""
+                
+                for segment in transcript_data.get('segments', []):
+                    segment_text = segment.get('text', '').strip()
+                    if segment_text:
+                        transcript_text += segment_text + " "
+                        segments_list.append({
+                            "start": segment.get('start', 0),
+                            "end": segment.get('end', 0),
+                            "text": segment_text,
+                            "speaker": "Speaker_1"
+                        })
                 
                 # Clean up
-                os.remove(output_path)
-                if os.path.exists(audio_path):
-                    os.remove(audio_path)
+                os.remove(json_path)
+                
+                # Also remove any other generated files
+                for ext in ['txt', 'srt', 'vtt']:
+                    other_file = f"{output_base}.{ext}"
+                    if os.path.exists(other_file):
+                        os.remove(other_file)
                 
                 return {
                     "success": True,
-                    "transcript": transcript.strip(),
-                    "segments": [],
-                    "language": "unknown",
-                    "duration": 0,
+                    "transcript": transcript_text.strip(),
+                    "segments": segments_list,
+                    "language": transcript_data.get('language', 'unknown'),
+                    "duration": transcript_data.get('duration', 0),
                 }
             else:
                 raise Exception("Transcript file not generated")

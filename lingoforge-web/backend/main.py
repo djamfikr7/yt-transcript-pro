@@ -194,12 +194,24 @@ async def startup_event():
     # Resume stuck downloads on startup
     try:
         db = SessionLocal()
-        stuck_projects = db.query(Project).filter(Project.status.in_([ProjectStatus.DOWNLOADING, ProjectStatus.CREATED])).all()
+        # Include 'processing' status to catch projects that got stuck mid-task
+        stuck_projects = db.query(Project).filter(Project.status.in_([
+            ProjectStatus.DOWNLOADING,
+            ProjectStatus.CREATED,
+            ProjectStatus.TRANSCRIBING,
+            ProjectStatus.PROCESSING,
+            ProjectStatus.PROCESSING
+        ])).all()
         if stuck_projects:
-            print(f"🔄 Found {len(stuck_projects)} interrupted downloads. Resuming...")
+            print(f"🔄 Found {len(stuck_projects)} interrupted downloads/transcriptions. Resuming...")
             for p in stuck_projects:
-                asyncio.create_task(process_project_task(p.id, p.url, p.quality or 'best'))
-                print(f"   Resuming project #{p.id}: {p.url}")
+                # For stuck transcriptions, check if video file exists before resuming
+                if p.status == ProjectStatus.TRANSCRIBING and p.video_path and os.path.exists(p.video_path):
+                    print(f"   Resuming transcription for project #{p.id}: {p.url}")
+                    asyncio.create_task(process_project_task(p.id, p.url, p.quality or 'best'))
+                else:
+                    print(f"   Resuming project #{p.id}: {p.url}")
+                    asyncio.create_task(process_project_task(p.id, p.url, p.quality or 'best'))
         db.close()
     except Exception as e:
         print(f"⚠️ Startup recovery error: {e}")
@@ -263,13 +275,18 @@ async def process_project_task(project_id: int, url: str, quality: str):
             db.commit()
             return
         
-        print(f"✅ Downloaded: {download_result['title']} ({download_result['duration']}s)")
+        # Check if download was skipped (file already existed)
+        if download_result.get('skipped', False):
+            print(f"⏭️  Download skipped (file already complete): {download_result['title']} ({download_result['duration']}s)")
+        else:
+            print(f"✅ Downloaded: {download_result['title']} ({download_result['duration']}s)")
         
         project.video_path = download_result['video_path']
         project.title = download_result['title']
         project.duration = download_result['duration']
         project.thumbnail_url = download_result.get('thumbnail')
         project.status = ProjectStatus.PROCESSING
+        project.progress = 0
         db.commit()
         
         # Transcribe
@@ -327,7 +344,8 @@ async def process_project_task(project_id: int, url: str, quality: str):
         
     except Exception as e:
         error_msg = str(e)
-        print(f"Error processing project {project_id}: {error_msg}")
+        print(f"❌ Error processing project {project_id}: {error_msg}")
+        print(f"📋 Traceback: {traceback.format_exc()}")
         try:
             # Re-query project in case simple usage fails
             project = db.query(Project).filter(Project.id == project_id).first()
@@ -335,7 +353,8 @@ async def process_project_task(project_id: int, url: str, quality: str):
                 project.status = ProjectStatus.FAILED
                 project.error_message = error_msg
                 db.commit()
-        except:
+        except Exception as e:
+            print(f"⚠️ Failed to update project error status: {e}")
             pass
     finally:
         db.close()
@@ -459,7 +478,8 @@ async def delete_project(project_id: int, db: Session = Depends(get_db)):
             if path and os.path.exists(path):
                 try:
                     os.remove(path)
-                except:
+                except Exception as e:
+                    print(f"⚠️ Failed to delete file {path}: {e}")
                     pass
         
         # Delete associated records
@@ -901,6 +921,7 @@ async def export_project(project_id: int, format: str = "txt", include_timestamp
             # Fallback message instead of error
             content = "[No speech content detected or processed for this project. This might happen if the video has no speech or transcription failed.]"
             include_timestamps = False # No timestamps for placeholder
+            print(f"⚠️ No transcript content available for project {project_id}, using fallback message")
         
         # Generate export
         export_content = ""
@@ -923,7 +944,18 @@ async def export_project(project_id: int, format: str = "txt", include_timestamp
             print(f"⚠️ Failed to save local export copy: {e}")
 
         if format == "txt":
-            export_content = content
+            # Format text with proper line wrapping and structure
+            import textwrap
+            export_content = f"{'='*60}\n"
+            export_content += f"Title: {project.title}\n"
+            export_content += f"URL: {project.url}\n"
+            export_content += f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+            export_content += f"{'='*60}\n\n"
+            
+            # Wrap text at 80 characters for readability
+            wrapped_lines = textwrap.wrap(content, width=80, break_long_words=False)
+            export_content += "\n".join(wrapped_lines)
+            
         elif format == "srt":
             transcript = db.query(Transcript).filter(Transcript.project_id == project_id).first()
             if transcript and include_timestamps:
@@ -933,12 +965,17 @@ async def export_project(project_id: int, format: str = "txt", include_timestamp
                     start = seg.get('start', 0)
                     end = seg.get('end', start + 1)
                     text = seg.get('text', '')
-                    export_content += f"{i+1}\n{format_timestamp(start)} --> {format_timestamp(end)}\n{text}\n\n"
+                    # Wrap subtitle text at 42 characters (standard SRT width)
+                    import textwrap
+                    wrapped_text = textwrap.fill(text, width=42, break_long_words=False)
+                    export_content += f"{i+1}\n{format_timestamp(start)} --> {format_timestamp(end)}\n{wrapped_text}\n\n"
             else:
-                lines = content.split('\n')
-                for i, line in enumerate(lines):
-                    if line.strip():
-                        export_content += f"{i+1}\n00:00:00,000 --> 00:00:01,000\n{line.strip()}.\n\n"
+                # Fallback: split content into sentences
+                import textwrap
+                sentences = [s.strip() for s in content.replace('.', '.|').replace('?', '?|').replace('!', '!|').split('|') if s.strip()]
+                for i, sentence in enumerate(sentences):
+                    wrapped_text = textwrap.fill(sentence, width=42, break_long_words=False)
+                    export_content += f"{i+1}\n00:00:00,000 --> 00:00:01,000\n{wrapped_text}\n\n"
         elif format == "vtt":
             export_content = "WEBVTT\n\n"
             transcript = db.query(Transcript).filter(Transcript.project_id == project_id).first()
@@ -948,12 +985,17 @@ async def export_project(project_id: int, format: str = "txt", include_timestamp
                     start = seg.get('start', 0)
                     end = seg.get('end', start + 1)
                     text = seg.get('text', '')
-                    export_content += f"{i+1}\n{format_timestamp(start, vtt=True)} --> {format_timestamp(end, vtt=True)}\n{text}\n\n"
+                    # Wrap subtitle text at 42 characters (standard WebVTT width)
+                    import textwrap
+                    wrapped_text = textwrap.fill(text, width=42, break_long_words=False)
+                    export_content += f"{i+1}\n{format_timestamp(start, vtt=True)} --> {format_timestamp(end, vtt=True)}\n{wrapped_text}\n\n"
             else:
-                lines = content.split('.')
-                for i, line in enumerate(lines):
-                    if line.strip():
-                        export_content += f"{i+1}\n00:00:00.000 --> 00:00:01.000\n{line.strip()}.\n\n"
+                # Fallback: split content into sentences
+                import textwrap
+                sentences = [s.strip() for s in content.replace('.', '.|').replace('?', '?|').replace('!', '!|').split('|') if s.strip()]
+                for i, sentence in enumerate(sentences):
+                    wrapped_text = textwrap.fill(sentence, width=42, break_long_words=False)
+                    export_content += f"{i+1}\n00:00:00.000 --> 00:00:01.000\n{wrapped_text}\n\n"
         
         import tempfile
         temp_file = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix=f".{format}")
